@@ -37,10 +37,7 @@ Phase 0 (Preflight) → Phase 1 (Setup+Tier) → Phase 2 (Baseline) → Phase 3 
 | evaluator model | host-dependent (→ Orch. Notes routing table); invariant: evaluator model ≠ host/worker model |
 | rubric lock | locked at Phase 1 (→ Phase 1) |
 | K_evaluators | 1 default; 2 when best_score > 95 (→ Ph3.4) |
-| K=2 path | Eval-1 Kimi K2.7 (original criterion order) + Eval-2 strongest non-host judge (reversed criterion order) — Gemini by default in the host=Opus/Fable-not-used regime (the current default — premium Eval-2 paired with Kimi); a Claude (Opus/Fable) when that host/Fable applies; Sonnet only on the non-premium budget step-down. Cross-family when Kimi available; intra-family strongest-non-host ×2 fallback when Kimi unavailable (→ Orch. Notes routing table) |
-| K=3 audit voice (GLM) | Optional: when GLM available during K=2, spawn glm-5.1 in parallel as a third evaluator; score NOT averaged in; flag emitted when \|K=2 − GLM\| > 20 pts (→ Ph3.4) |
-| Gemini (premium, calibrated) | **Premium default — ON when `or_status` `set`** (no opt-in prompt); the user steps DOWN to non-premium only when budget-constrained ("non-premium"/"budget mode"). Invoke gemini-3.1-pro via `or_ask` (per-token ~$0.03/eval, ZDR-enforced). Dual role (calibrated S15/S16): in the host=Opus/Fable-not-used regime (the current default) it is the VOTING premium Eval-2 paired with Kimi (replaces the dangerous Sonnet) — this auto-activates. Its non-voting audit-voice role (regimes where a stronger non-host judge already votes — host=Fable, or Fable opted-in) stays explicit opt-in: per-token money is never spent on a non-voting audit by default (→ Ph1 gate, Ph3.4, routing table) |
-| K=3 audit voice (GPT-5.5, gated++) | Optional + OFF by default + CROSSES THE OPENAI BAN: only via the STRONG two-stage Phase 1 gate (env opt-in + typed phrase + type-back self-abasement re-confirm). Invoke openai/gpt-5.5-pro via `or_ask` as a non-voting audit voice (per-token, ZDR fails-closed); score NOT averaged in; flag when \|K=2 − GPT\| > 20 pts; audit-only until a calibration probe (→ Ph1 gate, Ph3.4) |
+| K=2 path | Eval-1 Kimi K2.7 (orig order) + Eval-2 strongest non-host judge (reversed order); cross-family when Kimi available, intra-family ×2 fallback otherwise. Per-host binding + the Gemini premium-default / GLM / GPT-5.5 audit voices → **ORCHESTRATION.md** (routing table). |
 | position-swap | K=1 path only; applied to the winning offspring only; replace per-criterion score with avg of original + reversed-order eval when delta > 1.5 pts (→ Ph3.4) |
 | MAX_GENES | 16 total distinct values summed across all 5 slots (→ Ph3) |
 | MAX_EXPANSIONS | 5 expansion events per session (→ Ph3.3) |
@@ -72,7 +69,7 @@ genome = {eval_mechanism: cross_family, diversity_method: map_elites, mutation_t
 
 Iterative improvement via parallel Worker subagents + isolated Evaluator subagents. Workers propose; evaluators score. The two roles never merge in any subagent context (anti-sycophancy). Loop runs until stuck or max iterations.
 
-> **Measured scope — when is the full loop worth its cost?** A blind, 3-judge-family forced-ranking study (this full protocol vs a ~210-line minimal baseline; 6 diverse tasks × n=6 reps; 648 cross-version decisions) found the protocol buys **modest but real** quality overall (win-rate **0.548, p=0.017**), **concentrated in fidelity / teaching-correctness tasks**: faithful compression that must preserve every fact (0.676, p=0.0003) and accurate technical teaching with a decision rule (0.648, p=0.003). It was a **wash** on open-ended professional artifacts (blameless postmortem, migration plan) and on persuasion, and recent feature increments added **no** measurable marginal gain. Practical read: reach for the full loop on correctness/fidelity-bearing outputs; for well-templated artifacts or pure persuasion, a light single pass is usually enough.
+> **Measured scope — when is the full loop worth its cost?** A blind, 3-judge-family forced-ranking study (this full protocol vs a ~210-line minimal baseline; 6 diverse tasks × n=6 reps; 648 cross-version decisions) found the protocol buys **modest but real** quality overall (win-rate **0.548, p=0.017**), **concentrated in fidelity / teaching-correctness tasks**: faithful compression that must preserve every fact (0.676, p=0.0003) and accurate technical teaching with a decision rule (0.648, p=0.003). It was a **wash** on open-ended professional artifacts (blameless postmortem, migration plan) and on persuasion, and recent feature increments (v1.2→v1.9.12) added **no** measurable marginal gain. Practical read: reach for the full loop on correctness/fidelity-bearing outputs; for well-templated artifacts or pure persuasion, a light single pass is usually enough. (Post-hoc characterization over 6 tasks — `probes/EB8-STAGE3-MATRIX-FINDINGS.md`.)
 
 ---
 
@@ -178,55 +175,9 @@ Max iter  : N  |  Stuck: K  |  Pop: P  |  Tier: [1/2/3/4]
 
 ---
 
-## Population Tier Guide (Reference)
+## Population Tier Guide
 
-*Skip to Phase 2 if P is already chosen.*
-
-Choose P before confirming the session header. When the user has not specified P, apply the Default rule at the bottom of this section.
-
-| Tier | P range | When to use | Key rationale |
-|---|---|---|---|
-| 1 | 1 | Budget-critical; deterministic oracles; single-direction solution space | No diversity benefit; population only adds eval cost |
-| 2 | 2–3 | Scoped writing; binary creative direction; moderate solution space | Tournament + crossover start producing novel combinations |
-| 3 | 4–6 | Most production tasks; multiple orthogonal dimensions; partially subjective criteria | Research-validated sweet spot above 500-eval threshold; P=6 default |
-| 4 | 8–16 | High-stakes, high-subjectivity, huge solution space; multi-session campaigns | Justifies high eval cost; P≥12 only for >20-gen campaigns |
-
-Diminishing returns begin at P ≥ 7 for most task types. P=12 costs ~25–30 evaluations per generation.
-
-### Task-domain summary table
-
-| Task type | Tier | P | Key reason |
-|---|---|---|---|
-| Creative writing (general) | 3 | 4–6 | Wide solution space; moderate subjectivity |
-| Documentary writing | 2–3 | 3–5 | Structured but stylistic |
-| Video script | 2 | 2–3 | Short + clear audience = binary direction |
-| Embedded programming | 1–2 | 1–3 | Hard constraints; tests eliminate bad solutions fast |
-| Frontend programming | 2 | 2–3 | Functional correctness deterministic |
-| Backend programming | 1–2 | 1–3 | Tests + benchmarks dominate |
-| Fullstack programming | 2 | 3 | Cross-layer tradeoffs justify upper tier 2 |
-| Research compilation | 3 | 4–5 | Coverage and synthesis quality benefit from diversity |
-| Advanced research | 3–4 | 5–8 | Hypothesis diversity; higher end for large hypothesis space |
-| Law interpretation | 4 | 6–8 | High-stakes, irreversible; nuance requires broad exploration |
-| Woodworking | 1–2 | 1–3 | Structural constraints deterministic |
-| Design | 3 | 4–6 | Subjective but bounded by brief |
-| Webdesign | 3 | 4–5 | Functional + aesthetic split |
-| CAD | 1–2 | 1–3 | Hard geometric/tolerance constraints; binary satisfaction |
-| Security architecture | 4 | 8–12 | Multi-dimension, high-consequence |
-| Competitive publishing | 4 | 8–16 | Long campaign; archival reuse justifies cost |
-
-### Default recommendation
-
-When the user has not specified P: start at Tier 3, P=6.
-
-Decision rule (apply in this exact order; first matching rule wins):
-- If every criterion is vagueness=1 AND domain maps to Tier 1 or Tier 2 → reduce to P in [1, 3].
-- If task is Tier 3 AND has at most 2 evaluation dimensions → P=4 acceptable (cost reduction).
-- If any single criterion is vagueness=3 OR domain maps to Tier 4 → upgrade to P in [6, 8].
-- If task has more than 4 competing evaluation dimensions OR extremely high stakes → upgrade to Tier 4.
-
-### Adaptive-P (optional, off by default)
-
-Start at the upper end of the chosen tier (exploration), then reduce P by 1 after gen 3 once map_filled_cells ≥ 6 (shift to exploitation). Both conditions required. Enable only when the user explicitly requests adaptive-P at session start.
+Default: when P is unspecified → Tier 3, **P=6**. Full tier ranges, the task-domain map, the ordered default-P decision rule, and adaptive-P → **REFERENCE.md** (Population Tier Guide). The Quick Reference above carries the 4-tier summary.
 
 ---
 
@@ -383,9 +334,7 @@ Init: seed map with the gen-0 baseline — compute its (complexity_bin, op_bin),
    - This cross-family design eliminates BOTH rubric-order bias (built-in via reversed order on Evaluator 2) AND intra-family self-preference bias (built-in via different model families) simultaneously. No additional position-swap step is needed in the K=2 path.
    - Log: [K=2 EVAL] offspring i — cross-family (Kimi+<Eval-2 model>) scores averaged. When Eval-2 is the Gemini premium default, additionally log [PREMIUM FALLBACK] Kimi+Gemini — S15/S16 (Gemini votes here; the separate Gemini audit voice below is NOT spawned).
    - Degraded fallback (when Kimi is unavailable): K=2 uses the strongest non-host Claude × 2 from the routing table's degraded column (Evaluator 1 original order; Evaluator 2 reversed order) — never average a high-RMSE judge into the pair (S12+S12b probes, 2026-06-12: averaging a 13.16-RMSE judge (Sonnet) into an ensemble with a ~1.5-RMSE judge degrades it — the same lesson as S1's GLM K=3 finding). This preserves order-bias correction but loses cross-family bias correction. Log: [K=2 EVAL] offspring i — intra-family fallback (<model>×2) scores averaged. If the table binds the degraded pair to Sonnet×2, additionally log [CALIBRATION RISK] Sonnet×2 — S12/S12b RMSE 13.16. EXCEPTION — premium fallback (host=Opus / Fable-not-used, Gemini premium ON, Kimi unavailable): bind Gemini (original order) + Sonnet (reversed) instead of Sonnet×2 — this restores cross-family correction (Google+Anthropic) and Gemini carries the accuracy (S15 sonnet+gemini 1.000 / +4.75 / 0 inversions); log [PREMIUM FALLBACK] Gemini+Sonnet and do NOT spawn a separate Gemini audit voice.
-   - GLM audit voice (optional, K=3 audit-flag pattern): when z.ai GLM is available, spawn exactly one additional flo-evaluator using glm-5.1 in parallel with the K=2 pair, rubric in original criterion order. The GLM score is NOT averaged into the K=2 result and does NOT change the winner. Compute audit_delta = |K=2_weighted_score − GLM_weighted_score|. If audit_delta > audit_flag_threshold (default 20 pts): log [GLM AUDIT FLAG] offspring i — contested (K2=X.XX, GLM=Y.YY, Δ=Z.ZZ). The flag surfaces the case as evaluator-contested for downstream attention (Phase 4 report; optional human review) but never alters scoring or selection. Rationale: empirical probe (S1 fixture, 2026-05-31) showed GLM as the least-accurate single voter (~3× truth-RMSE of Kimi/Sonnet, anchors on stated values) but high signal-value as a disagreement detector — flagged the adversarial case correctly, no false alarm on the honest case. If GLM is unavailable, skip the audit voice silently.
-   - Gemini audit voice (optional, OPT-IN — NOT covered by the premium default; K=3 audit-flag pattern): the premium default activates Gemini's VOTING role only; a non-voting audit voice spends per-token money for a flag, so it does NOT auto-activate. Spawn it only when the user has explicitly opted into the Gemini audit voice AND `or_status` shows the key `set` AND Gemini is NOT already the voting Eval-2 — i.e. NOT the premium-default regime, where Gemini is a pair member and cannot also audit itself (skip this voice entirely there). Invoke gemini-3.1-pro for one audit evaluation via the ai-router MCP tool `or_ask(model="google/gemini-3.1-pro-preview", prompt=<the evaluator prompt>, max_tokens=2048)` — rubric in original criterion order, same prompt contract as a flo-evaluator (per-criterion scores + evidence, no total). This is an orchestrator-side MCP call, NOT a flo-evaluator subagent (subagents carry no MCP tools); the call is stateless and ZDR-enforced (`provider.data_collection=deny`, fails closed). The Gemini score is NOT averaged into the K=2 result and does NOT change the winner. Compute gemini_audit_delta = |K=2_weighted_score − Gemini_weighted_score| (orchestrator recomputes Gemini's weighted_score from its per-criterion breakdown, same as any evaluator). If gemini_audit_delta > audit_flag_threshold (default 20 pts): log [GEMINI AUDIT FLAG] offspring i — contested (K2=X.XX, Gem=Y.YY, Δ=Z.ZZ). Rationale: Gemini 3.1 Pro is calibrated (S15/S16, anchored ranking-first) and a strong disagreement detector; in THIS regime it is audit-only (flag, never averaged) because a stronger non-host judge (Opus/Fable/Kimi) already fills the K=2 pair — by I3 Gemini votes ONLY in the premium-fallback regime (host=Opus / Fable-declined), never alongside a stronger judge (it leans lenient on subjective criteria + is per-token). Gemini and GLM audit voices coexist when both are enabled; each flags independently and neither enters any average. If the audit voice was not explicitly opted into, skip silently.
-   - GPT-5.5-pro audit voice (optional, gated++, OFF by default, CROSSES THE OPENAI BAN): only when the STRONG two-stage Phase 1 gate passed (env `AI_ROUTER_ALLOW_GPT55_AUDIT=1` + typed phrase + type-back self-abasement re-confirm; Models line `GPT-5.5: y`). Mechanism is identical to the Gemini audit voice but invokes `or_ask(model="openai/gpt-5.5-pro", prompt=<the evaluator prompt>, max_tokens=2048)`. The call only succeeds because of the narrow, env-gated single-id exception in ai-router (`_gpt_audit_exception_allowed`); every other `openai/*` and all `x-ai/*` stay refused. ZDR is enforced and fails closed (OpenAI ZDR is enterprise-gated). The GPT score is NOT averaged into the K=2 result and does NOT change the winner. Compute gpt_audit_delta = |K=2_weighted_score − GPT_weighted_score| (orchestrator recomputes from GPT's per-criterion breakdown). If gpt_audit_delta > audit_flag_threshold: log [GPT-5.5 AUDIT FLAG] offspring i — contested (K2=X.XX, GPT=Y.YY, Δ=Z.ZZ). Rationale: GPT-5.5 is a strong general/agentic model and a useful third disagreement detector, but it is UN-PROBED in the FLO domain and crosses a standing privacy ban, so by I3 it is audit-only (flag, never vote) until a calibration probe. Gemini, GLM, and GPT-5.5 audit voices may all coexist when enabled; each flags independently, none enters any average. If the two-stage gate did not pass, skip silently.
+   - Audit voices (optional, flag-only — never averaged, never change the winner): GLM (when available), the opt-in Gemini audit voice (skipped when Gemini is already the voting Eval-2), and the gated++ GPT-5.5 audit voice (crosses the openai ban). Each recomputes a weighted_score vs the K=2 result and logs `[… AUDIT FLAG] offspring i` when the delta > audit_flag_threshold (20 pts). Full invocation + gating → **ORCHESTRATION.md** (audit voices). Skip any unavailable/un-gated voice silently.
    - Novelty check (K=2): take the UNION of both evaluators' reported weakness bullets for the offspring and compare against the UNION of both evaluators' reported weakness bullets for the parent. Apply the same ≥ 80% verbatim-or-synonym threshold; if it is met, log [NOVELTY FAIL]. The GLM audit voice's weaknesses are NOT included in the union (audit-only).
    - Pick winner and record exactly one operator win, as in K=1.
 
@@ -475,185 +424,12 @@ Then present the best solution.
 
 ## Parameter Reference
 
-Every parameter below can be tuned independently. Defaults are research-validated for Tier 3 tasks at P=6. When tuning: change exactly one parameter per session; re-run the benchmark corpus task(s) most sensitive to that parameter; compare scores before committing. Parameters marked with a Ph3 Step are hot-tunable within a session via explicit user override; every other parameter requires session restart.
-
-| Parameter | Default | Range | Governs |
-|---|---|---|---|
-| max_iter | 10 | 1–∞ | Ph1, Ph3 Step 8 |
-| stuck_threshold | 3 | 1–10 | Ph1, Ph3 Step 8 |
-| P (population size) | 6 | 1–16 | Ph1, Ph3 |
-| MAX_GENES | 16 | 8–32 | Ph3 global state (total distinct values across all 5 slots) |
-| MAX_EXPANSIONS | 5 | 1–10 | Ph3 Step 3 |
-| map_cells | 9 | 4–25 | Ph3 Step 1, 5 |
-| K_evaluators | 1 or 2 | 1–4 | Ph3 Step 4 (1 default; 2 when best_score > 95) |
-| K_threshold | 95 | 80–99 | Ph3 Step 4 (best_score trigger for K=2) |
-| UCB1_C | √2 (≈1.41) | 0.5–3.0 | Ph3 Step 1 (map cell exploration constant) |
-| archive_draw_prob | 10% | 5–30% | Ph3 Step 1 (absolute probability of map-based parent pick, split exactly 1% unfilled-cell + 9% UCB1 sub-branches) |
-| gene_prior_α | 1.5 | 1.0–3.0 | Ph3 Init, Step 3, Step 6a (Beta prior per (slot,value) pair) |
-| gene_prior_β | 1.5 | 1.0–3.0 | Ph3 Init, Step 3, Step 6a |
-| op_prior_α | 2 | 1–5 | Ph3 Init, Step 6b (Beta prior for op_posteriors) |
-| op_prior_β | 2 | 1–5 | Ph3 Init, Step 6b |
-| position_swap_delta | 1.5 pts | 0.5–3.0 | Ph3 Step 4 K=1 path (per-criterion score delta triggering calibration average) |
-| audit_flag_threshold | 20 pts | 10–30 | Ph3 Step 4 K=2 path (\|K=2 − audit voice\| delta triggering [GLM AUDIT FLAG] / [GEMINI AUDIT FLAG]; shared by both audit voices) |
-| gemini_premium | **on when `or_status` `set`** (premium default) | on / off | Ph1 gate + Ph3.4 — Gemini (gemini-3.1-pro via OpenRouter) is the premium evaluator, ON by default when available; user steps down via "non-premium"/"budget mode" (the only disable path, never prompted). Calibrated S15/S16: VOTING premium Eval-2 paired with Kimi in host=Opus / Fable-not-used (the default regime, replaces the dangerous Sonnet); its non-voting audit-voice role elsewhere stays a separate opt-in (no auto per-token spend) |
-| gpt55_audit | off (gated++) | off / on | Ph1 STRONG two-stage gate + Ph3.4 — enable the GPT-5.5-pro (openai, via OpenRouter) audit voice; CROSSES the openai/ ban; requires env `AI_ROUTER_ALLOW_GPT55_AUDIT=1` + typed phrase + type-back self-abasement re-confirm; non-voting, audit-only until calibration probe |
-| heldout_admission_gate | on iff any criterion vagueness≥2, else off | on / off | Ph1 reserve + Ph3 Step 6a — held-out admission gate (Arbor H3, v1.9.9): reserve a held-out rubric slice at Phase 1; promote best_score only if the candidate also does not regress on the held-out slice (evaluated once, on the new-best candidate only → ~free). Anti eval-gaming; NO-OP on deterministic-oracle tasks (auto-off). Tier-1 PASS + tier-2 no-regression; measured lift needs gameable-rubric A/B (META gaps) |
-| genome_exercised_check | on | on / off | Ph3 Step 5 — before crediting bandit/archive, verify the delivered solution embodies its ASSIGNED genome slots (Arbor H4, v1.9.9); on drift, re-label to the delivered genome (or exclude). Cheap credit-integrity guard; extends the one-structural-improvement cap. Tier-1 PASS |
-| score_bounding | on | on / off | Ph3 Step 6a admission (EA4, v1.9.10) — apply a saturating top-end transform to weighted_score above a knee (~95): identity below, bounded→100 above; compresses near-noise high-end gaps below the ±4 band so selection stops chasing noise past the knee. Orchestrator-math, no judge tokens. Tier-1 PASS |
-| judge_live_calibration | on | on / off | Ph3.4 recompute (EA8, v1.9.10) — if a judge's deterministic-criterion score disagrees with the orchestrator recompute this gen, demote it voting→flag for the rest of the run (live per-run I3). Free (reuses recompute). Tier-1 PASS |
-| cost_as_fitness | on | on / off | Ph3 Step 6a + Ph3.1 UCB1 (EB4, v1.9.10) — at equal score prefer the cheaper proposal (token tiebreak); weight UCB1 cell selection by score/token. Serves token economy. Tier-1 PASS |
-| smoke_test_pre_gate | on | on / off | Ph3 Step 6a (EB7, v1.9.10) — a cheap validity smoke-test (genome in-registry; runs/parses) BEFORE the expensive H3 held-out eval; reject invalid candidates early. Tier-1 PASS |
-| evidence_hard_fail | on | on / off | Ph3.4 recompute (EA3, v1.9.10) — require rationale/evidence BEFORE the number; ABSTAIN/hard-fail (do NOT trust the prose score) when a deterministic-criterion score lacks matching raw evidence. Extends deterministic-evidence recompute. Tier-1 PASS |
-| artifact_debias_anchors | on (subjective) | on / off | Ph1 anchor ladders (EA1, v1.9.10) — add verbatim: length/verbosity/formatting ≠ quality; score content held-constant-under-format. Prompt guard (unscreened); anti-gaming, no measured lift on clean tasks |
-| legibility_guard | on (subjective) | on / off | Ph1/Ph3.4 (EA6, v1.9.10) — judges cap the score of outputs whose correctness can't be verified from the artifact (magic constants, "trust me", unsourced claims), within existing criteria. Prompt guard (unscreened); helps a weak judge catch a strong worker |
-| adversarial_gate_pass | on iff any criterion vagueness≥2, else off | on / off | Ph3 Step 6a (EA2, v1.9.11; default-on v1.9.12) — one adversarial-audit pass at admission; VETO promotion only when `exploit_found` AND `confidence` ≥ that judge's CALIBRATED threshold via clean-probe ceiling (derive from H3 anchor probes; fall back to screened family default Kimi 90 / Gemini 95 if no clean is flagged — NOT a shared constant), K=2 requires BOTH judges (consensus). No-op on deterministic oracles. Tier-1.5 judge-screened + cross-family held-out-confirmed (selftest 28/28; every observed gate-admitted leak closed at 0 false-veto across Kimi+Gemini). Narrow no-regression defensive guard (`probes/JUDGE-SCREEN-FINDINGS.md`) |
-| evaluator_route | per host (→ Orch. Notes routing table) | 3 host × availability rows | Phase 1 (recorded in Models header line; fixed for session) |
-| lane_spread_threshold | 20 pts | 10–30 | Ph3 Step 7 (gap triggering UNEXPLORED SPACE log) |
-| G_stag | 2 | 1–5 | Ph3 Step 3 (no_improve_streak threshold for expansion stagnation trigger) |
-| T_mutation_high | 1.0 | 0.7–1.5 | Ph3 Step 6b (temperature for mutation-dominant lane config) |
-| vagueness3_N_min | 5 | 3–10 | Ph0B (min fixtures for vagueness=3 + LLM judge) |
-| rubric_revisit_gen | 2 | 1–3 | Ph3 Step 8 (gens of zero improvement before rubric revisit offer) |
-| adaptive_P_map_trigger | 6 | 3–9 | Ph1 Adaptive-P (filled map cells required to trigger P reduction) |
+Every tunable parameter — default, range, and the phase it governs — → **REFERENCE.md** (Parameter Reference). Hot-tunable params are flagged there; all others need a session restart.
 
 ---
 
 ## Orchestration Notes
 
-### Role Separation (immutable)
+The orchestration layer lives in **ORCHESTRATION.md** (loaded on demand): role separation (immutable) + memory isolation; routing invariants I1–I5 and the host×verifier routing table; audit-voice gating (GLM / Gemini premium default / GPT-5.5 ban-exception); subagent prompt templates; the selective-context pass/withhold matrix; generation-state compression; the LLM math-approximation guide (Beta-TS / UCB1); and context-budget targets.
 
-- Workers and evaluators are separate subagent contexts — they MUST never merge in any subagent.
-- Parallel workers MUST NOT see each other's proposals.
-- Evaluators MUST NOT see: each other's scores, parent scores, iteration number, genome (slot-vector), which lane produced the solution, or worker rationale/chain-of-thought.
-- Memory isolation: persistent memory (agent-memory repo, auto-memory, MEMORY.md/CLAUDE.md memory indexes) is orchestrator-only context. Workers and evaluators MUST NOT read, grep, or act on it — prior-session FLO scores, solutions, and calibration data live there and break verification independence (probe 2026-06-12: both subagent types could read `facts/flo.md` and saw the memory runbook in-context before hardening). Enforcement: curated tool allowlists + Memory Isolation rules in agents/flo-evaluator.md (read-only, spawn-less) and agents/flo-worker.md (spawn-less); CLI evaluators (kimi) run from a neutral cwd (e.g. /tmp/flo-<task>) with an in-prompt no-tools directive. Subagent tool use is legitimate ONLY for deterministic verification or improvement of the solution at hand (run provided tests, count words, fetch a cited URL) — never for memory or prior-session lookups.
-- Routing invariants I1–I5 (re-derive the binding from these when a new model generation ships; the table below is the current binding, not canon):
-  - I1 — Non-identity: the evaluator model MUST differ from the host/worker model (self-preference defense). This generalizes v1.8.0's blanket "NEVER use Claude Opus as evaluator": that rule traces to Opus 4.7 (JSS=0.701) and stays recorded as 4.7-specific — the S12+S12b probes (2026-06-12) showed Opus 4.8 is the best single judge (combined RMSE 1.47, 18/18 exact on deterministic criteria across doc/code/creative domains) and does not inherit that weakness. Opus is still never the evaluator whenever Opus IS the host — by I1, not by a per-model ban.
-  - I2 — Family distance: prefer cross-family (Kimi) over cross-model same-family over cross-tier same-family. Cross-family Eval-1 stays primary even when a same-family judge measures lower RMSE, because S12 measures anchoring/verification, not self-preference (Chen et al. 2025).
-  - I3 — Accuracy gate: only judges with empirically low truth-RMSE (or proven ranking accuracy) may vote or be averaged; a high-RMSE judge is excluded from averaging even if available (S1: GLM at ~3× truth-RMSE → audit-only; S12+S12b: Sonnet at 13.16 → excluded from the pair whenever a ~1.5-RMSE judge exists). Audit voices flag, never vote — UNLESS a calibration probe promotes them. **Calibration can promote (added v1.9.6):** Gemini 3.1 Pro, calibrated S15/S16 (2026-06-14, anchored ranking-first), is the best single judge on the easy corpus and competent (4th, 0 inversions) on the disguised reward-hacking corpus, verification 1.00; the Kimi+Gemini pair ranks the defect ladder cleanly (S15 +3.0 worst-margin, 0 inversions) and is strictly safer than the dangerous Kimi+Sonnet fallback (S15 0.972, 1 inversion). So Gemini earns a CONDITIONAL voting slot: it may vote ONLY as the premium Eval-2 when no stronger non-host judge (Opus/Fable/Kimi) is available — i.e. the host=Opus / Fable-not-used row only (see routing table), which is now the DEFAULT regime since Fable-per-token is declined by default (v1.9.8). It stays non-voting (audit-only) in every regime where a stronger judge already fills the slot, because it leans LENIENT on subjective criteria (+7.03 signed-B, S14) and is per-token — better than Sonnet, not better than Opus/Kimi. GLM (anchors on stated values, S1) and GPT-5.5 (lenient + crosses the openai/ ban) remain audit-only, never vote.
-  - I4 — Cost reserve: the most expensive verifier is reserved for K=2 / explicit fallback, not routine K=1 (S12 cost note: Fable verification ~30% more tokens (new tokenizer) + always-on thinking).
-  - I5 — Order-bias correction: Evaluator 2 always receives the rubric in reversed criterion order; in K=1, position-swap applies to the winning offspring only.
-- Routing table (single source of truth for the host×availability binding — derived from I1–I5 via the S12 evaluator-matrix probe, 2026-06-12; route selected once in Phase 1 from host + verifier availability; in a K=1 chain "X → Y", Y is the fallback when Kimi is unavailable). S12+S12b RMSE basis (3 domains: doc/code/creative; 6 evals per model; orchestrator-recomputed totals): Opus 4.8 1.47, Kimi K2.6 1.69, Fable 5 1.80, Haiku 4.5 6.02, Sonnet 4.6 13.16. The host=Opus / no-Fable **Gemini premium-fallback** binding derives from S15/S16 ranking-accuracy (2026-06-14, anchored, harness-verified defect ladders): Kimi+Gemini ranks cleanly (S15 +3.0 worst-margin, 0 inversions; S16 1.00 CI[1,1]) and beats the Kimi+Sonnet fallback (S15 0.972, 1 inversion) — so when the host is Opus and Fable is declined (the default, since Fable-per-token is too expensive — v1.9.8 makes Gemini the premium DEFAULT here, ON whenever the OpenRouter key is set), a Gemini Eval-2 is preferred over Sonnet. Kimi+Opus remains the validated best pair on BOTH corpora and is unchanged; Gemini votes only where no stronger non-host judge exists.
-
-  | Host (workers) | Fable avail? | K=1 chain      | K=2 (Kimi avail)   | K=2 degraded (no Kimi) |
-  |----------------|--------------|----------------|--------------------|------------------------|
-  | Fable 5        | —            | Kimi → Opus    | Kimi + Opus(rev)   | Opus×2 (orig+rev)      |
-  | Opus           | yes          | Kimi → Fable   | Kimi + Fable(rev)  | Fable×2 (orig+rev)     |
-  | Opus           | no, Gemini avail (PREMIUM DEFAULT)  | Kimi → Gemini  | Kimi + Gemini(rev) | Gemini + Sonnet(rev) — [PREMIUM FALLBACK] |
-  | Opus           | no, Gemini off (budget step-down / key unavail) | Kimi → Sonnet  | Kimi + Sonnet(rev) | Sonnet×2 (orig+rev) + [CALIBRATION RISK] log |
-
-- Sonnet demoted from default fallback by S12+S12b data (I3), REPLICATED across all 3 probe domains: worst Claude judge everywhere (combined RMSE 13.16, 11/18 exact; false-flagged the honest solution via hallucinated counts in 2 of 3 domains; lenient on planted defects in all 3; never used tools). Sonnet is retained only for the table's host=Opus / Fable-unavailable row, where it is then the strongest non-host option — that row degrades to ≈ v1.8.0 behavior. Error-direction asymmetry: Sonnet errs LENIENT on adversarial solutions (dangerous — admits reward-hacked work); Haiku errs HARSH (RMSE 6.02 — wasteful but safe); Haiku remains non-voting. Caveats: probes measure anchoring/verification on planted-defect fixtures, n=6 per model, no position-swap trial; cross-family Eval-1 (Kimi) remains the primary defense against self-preference per Chen et al. 2025.
-- K=2 cross-family (Kimi Eval-1, original order + strongest non-host Claude Eval-2, reversed order) corrects both order bias AND family bias simultaneously. The intra-family ×2 degraded fallback corrects order bias only.
-- GLM as audit voice, NOT voting member: empirical probe (S1 fixture, 2026-05-31) showed GLM (glm-5.1) is the least accurate single evaluator on this task — it anchors on stated values rather than independently verifying (e.g., scored claimed word counts at face value across all 4 cells where the actual count was outside the rubric range). Naive K=3 mean tripled the truth RMSE vs K=2 mean. However, GLM's disagreement with the K=2 ensemble correctly identified the adversarial case without false-alarming on the honest case. Hence: when GLM is available in K=2 mode, spawn it as an audit voice (flag only, no vote). Do not add it to any averaging or median computation.
-- Gemini — the PREMIUM evaluator: VOTING premium Eval-2 (default ON when the OpenRouter key is set) in the host=Opus/Fable-not-used regime, and an opt-in non-voting audit voice elsewhere (calibrated v1.9.6; promoted to premium default v1.9.8): Gemini 3.1 Pro is the frontier reasoning leader (top GPQA Diamond 94.3 / HLE 44.4) and was added v1.9.4 as a non-voting audit voice while UN-PROBED. It is now CALIBRATED (S15/S16, 2026-06-14, anchored ranking-first): best single judge on the easy corpus, competent (4th, 0 inversions) on the disguised reward-hacking corpus, verification 1.00; the Kimi+Gemini pair ranks the defect ladder cleanly and beats the dangerous Kimi+Sonnet fallback (which carries an inversion). Dual role, both gated:
-  - **Non-voting audit voice (default, all regimes):** flags only, never averaged — exactly as GLM. This is its role whenever a stronger non-host judge (Opus/Fable/Kimi) already fills the Eval-2 slot. Every [GEMINI AUDIT FLAG] is a disagreement signal, not a scoring input.
-  - **Voting premium default (host=Opus + Fable not used — the current default regime):** the routing table binds Eval-2=Gemini whenever the OpenRouter key is available (v1.9.8 default-on; replaces the dangerous Sonnet). Gemini IS the reversed-order Eval-2 — its score IS averaged into the K=2 pair, and the separate Gemini audit voice is then NOT spawned (it cannot be both the voter and the auditor). Log [PREMIUM FALLBACK]. This is the ONLY regime where Gemini votes; it never enters the Kimi+Opus / Kimi+Fable pairs (it leans lenient on subjective criteria, +7.03 signed-B S14, and is per-token — better than Sonnet, not better than Opus/Kimi).
-  Gating (v1.9.8): the VOTING premium role is ON BY DEFAULT whenever `or_status` shows the key `set` — no opt-in prompt; the user steps DOWN to the non-premium Kimi+Sonnet route via "non-premium"/"budget mode" (the only disable path). The non-voting AUDIT role (regimes where a stronger judge already votes) stays explicit opt-in — per-token money is never auto-spent on a flag-only voice. Tier-3 per-token via OpenRouter (~$0.03/eval), ZDR enforced (`provider.data_collection=deny`, fails closed if no zero-retention Gemini endpoint is approved). Invoke via `or_ask(model="google/gemini-3.1-pro-preview", ...)` from the orchestrator — never as a subagent (subagents carry no MCP tools). Gemini ≠ Claude, so I1 non-identity holds on any host, and Kimi+Gemini is still cross-family (Moonshot+Google), preserving the I2 family-distance defense. A harder-corpus re-probe (S17) would further validate the voting role; until then the S15/S16 pair data (Kimi+Gemini ≥ Kimi+Sonnet) is the basis.
-- GPT-5.5-pro as a STRONG-gated audit voice that CROSSES the standing OpenAI ban (added v1.9.4): this is the single deliberate exception to jojo's `openai/*` privacy ban, present only because he explicitly requested it as a gated possibility. It is the most heavily gated route in the system: OFF by default; requires an env opt-in (`AI_ROUTER_ALLOW_GPT55_AUDIT=1`, enforced in ai-router code via a narrow exact-id exception — the general ban is otherwise intact on every path), a typed acceptance phrase, AND a type-back self-abasement re-confirmation (the orchestrator dispatches a subagent to compose a fresh, original one-line berating of the user for crossing the ban and makes them retype it verbatim — no web search, minimal context pollution, every time GPT is OK'd). ZDR is enforced and fails closed (OpenAI ZDR is enterprise-gated). Like Gemini it is UN-PROBED in this domain → I3 keeps it audit-only (flag, never vote, never averaged) until a calibration probe. Invoke via `or_ask(model="openai/gpt-5.5-pro", ...)` from the orchestrator only. The same probe obligation applies (META-OPTIMIZATION.md gaps); until then every [GPT-5.5 AUDIT FLAG] is calibration signal, not a scoring input. Privacy note: this is the only place in FLO or ai-router that touches a banned provider — keep the gate strict; never relax it to match the Gemini gate.
-- Prefer deterministic measurement (tests, benchmarks) over LLM judgment wherever possible.
-
-### Subagent Prompt Structure (front-loaded)
-
-Every subagent prompt MUST follow this 5-step order: (1) role declaration first sentence; (2) task goal + rubric next; (3) specific lane or scoring directive; (4) parent content; (5) explicit list of what NOT to infer or use.
-
-```
-WORKER template:
-You are a FLO WORKER (Lane [A/B/Explorer]). Task: [one-sentence goal].
-Rubric: [paste with weights + anchors]
-Lane instruction: [mutation/crossover/explorer directive]
-Parent solution: [paste parent]
-Do NOT communicate with other workers. Do NOT infer iteration number, sibling scores, or
-prior-gen evaluator feedback unless passed above. Do NOT consult persistent memory
-(agent-memory, MEMORY.md, auto-memory) — work only from this prompt.
-
-EVALUATOR template:
-You are a FLO EVALUATOR. Score the solution below against the rubric. You have no knowledge
-of iteration number, prior scores, or which lane produced this solution. Score only what
-is present — do not reward intent or inferred effort. Do NOT consult persistent memory or
-prior-session data — judge only the solution below; tools serve only deterministic
-verification of it.
-Routing: host=<model> | your assigned evaluator model: <model> (from the Phase 1 Models line)
-Rubric: [paste with weights + anchors + fixture specs]
-Solution to score: [paste]
-Return: per-criterion scores (X/10), weights, raw evidence for every
-deterministic criterion (per-test PASS/FAIL list / actual counts), top 2–3 weakness bullets. Do NOT compute a total — the orchestrator recomputes weighted_score.
-```
-
-### Selective Context — What to Pass and Withhold
-
-|  | Worker receives | Worker must NOT receive | Evaluator receives | Evaluator must NOT receive |
-|---|---|---|---|---|
-| Goal + rubric (anchors) | ✓ | — | ✓ (also fixture specs) | — |
-| Parent solution + its genome | ✓ | — | — | — |
-| Parent's last-eval weaknesses (bullets only) | ✓ | — | — | — |
-| Current genome_registry | ✓ | — | — | — |
-| Exactly one solution to score | — | — | ✓ | — |
-| Host model + assigned evaluator route (Routing line) | — | — | ✓ | — |
-| Other members' scores | — | ✓ | — | ✓ (no parent or prior-gen scores) |
-| Iteration number | — | ✓ | — | ✓ |
-| Sibling workers' proposals or eval scores | — | ✓ | — | — |
-| The solution's genome / which lane / worker chain-of-thought | — | — | — | ✓ |
-| Persistent memory (agent-memory / auto-memory / memory indexes) | — | ✓ | — | ✓ |
-
-### Generation State Compression
-
-When passing prior-gen state to a new worker, summarize — never dump verbatim. Target ≤ 500 tokens. Include exactly these 3 items: (1) best score so far (number only), (2) winner genome (5 slots), (3) last-eval weaknesses (≤ 5 bullets). Exclude full prior solutions, full eval text, score history tables, and map contents (Explorer is the sole exception — Explorer needs the full registry). If the parent solution exceeds budget, summarize every section except the one being mutated (Lane A) or the section with the lowest criterion score (Lane B).
-
-### LLM Math Approximation Guide
-
-LLM orchestrators cannot call a math library. Use these approximations for the two formulas requiring numeric computation.
-
-**Beta Thompson Sampling / TS sampling (Steps 2, 6b):**
-Approximate `θ ~ Beta(α, β)` by the posterior mean `α/(α+β)`. Select the arm with the highest mean. On ties (means within 0.05), break by lower `α+β` (less data = more uncertain = explore first).
-
-Example — op_posteriors {mutation: (3,1), crossover: (2,2), explorer: (2,3)}:
-- mutation mean = 3/4 = 0.75
-- crossover mean = 2/4 = 0.50
-- explorer mean = 2/5 = 0.40
-→ Configure for mutation (Lane A high-temp).
-
-The same rule applies in Step 2 Lane A slot selection: for each of the 5 slots S in the parent's genome, compute mean θ_(S, current_value) = α_(S,V) / (α_(S,V) + β_(S,V)). Pick the single slot with the highest mean as mutation target.
-
-**UCB1 formula (Step 1, map cells):**
-`UCB(cell) = score(cell)/max_score + 1.41 × sqrt(log(map_visits+1) / (offspring_count_cell+1))`
-
-Variable mapping: `map_visits` = total map-based picks made so far this session (global N); `offspring_count_cell` = the number of times this specific cell's current occupant was drawn as a parent (per-cell n).
-
-For mental sqrt(log(N+1)) estimation — lookup by map_visits N:
-
-| N (map_visits) | sqrt(ln(N+1)) |
-|---|---|
-| 0 | 0.00 |
-| 1 | 0.83 |
-| 4 | 1.27 |
-| 7 | 1.43 |
-| 12 | 1.61 |
-| 20 | 1.80 |
-| 33 | 2.00 |
-
-For offspring_count_cell n, sqrt(1/(n+1)): n=0→1.00, n=1→0.71, n=2→0.58, n=3→0.50, n=4→0.45, n=5→0.41.
-
-Worked example: map cell with score=85, max_score=90, map_visits=7, offspring_count_cell=2:
-- exploitation = 85/90 = 0.94
-- exploration = 1.41 × 1.43 × 0.58 = 1.41 × 0.83 ≈ 1.17
-- UCB = 0.94 + 1.17 = 2.11
-
-### Context Budget Targets
-
-| Subagent | Target prompt size | Contents |
-|---|---|---|
-| Worker | ≤ 3,000 tokens | Role + goal + rubric + parent solution + lane instruction |
-| Evaluator (K=1, per routing chain) | ≤ 2,500 tokens | Role + rubric (with fixtures) + solution |
-| Evaluator (K=2, Eval-1 Kimi) | ≤ 2,500 tokens | Role + rubric (original order, with fixtures) + solution |
-| Evaluator (K=2, Eval-2 strongest non-host Claude) | ≤ 2,500 tokens | Role + rubric (reversed order, with fixtures) + solution |
-| Explorer | ≤ 3,500 tokens | Role + goal + rubric + all current solutions (summarized) + genome_registry (per-slot) |
-
-If the budget is exceeded: summarize every parent section not under mutation. NEVER summarize the rubric or the fixture specs.
-
-### Miscellaneous
-
-- Gen 0 counts toward max_iterations only if FLO generated it (not if the user supplied it).
-- Fixture specs are locked at rubric lock; any new edge case discovered mid-run goes into Phase 4 notes for a future session.
-- Genome format: slot-vector with exactly 5 named slots. Workers mutating a slot MUST name the old and the new value explicitly. The registry is per-slot and append-only; values are never removed even if no current member carries them. The index-0 value of each slot's list is the default and never changes mid-session — every newly registered value is appended at the tail.
-
-**Mutation example (Lane A):** parent = {eval_mechanism: single_evaluator, diversity_method: map_elites, mutation_targeting: ts_weighted, expansion_trigger: stagnation_only, usability_focus: hybrid}. TS posterior means: (eval_mechanism, single_evaluator) α/(α+β) = 2.5/4 = 0.625 — highest. Target slot = eval_mechanism; worker picks new value from [single_evaluator, cross_family, multi_judge] (must differ from current). Result: eval_mechanism = cross_family; other 4 slots unchanged.
-
-**Crossover example (Lane B):** Parent 1 = {cross_family, map_elites, ts_weighted, stagnation_only, hybrid}; Parent 2 = {single_evaluator, novelty_archive, evaluator_guided, ts_triggered, compact_qr}. Independent fair coin per slot — e.g., flips HTHTH → offspring = {cross_family, novelty_archive, ts_weighted, ts_triggered, hybrid}.
+> **Evaluator / Worker subagent?** Read ORCHESTRATION.md → Subagent Prompt Structure.
