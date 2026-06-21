@@ -1,6 +1,6 @@
 {
   "name": "jojo-skills",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Agentic skills: process discipline (systematic-debugging, verification-before-completion, brainstorming, TDD), plan-driven workflow (writing/executing plans, subagent-driven dev, git worktrees), memory + repo bootstrapping, plus FLO, monkeypaw, ayo, wololo.",
   "author": {
     "name": "jojo"
