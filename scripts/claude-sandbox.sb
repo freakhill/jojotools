@@ -1,0 +1,64 @@
+;; claude-sandbox.sb — macOS sandbox-exec profile for running
+;; `claude --dangerously-skip-permissions` with a restricted write surface.
+;;
+;; Reads: anywhere (so Claude can browse the whole repo, system docs, etc).
+;; Network: unrestricted outbound (LLM APIs, MCP servers, package mirrors).
+;; Writes: ONLY the worktree, shared .git dir, Claude state, and standard
+;;         cache/temp dirs. Writes to the rest of $HOME and the main
+;;         dotfiles checkout are blocked.
+;;
+;; Parameters (pass with `sandbox-exec -D NAME=value`):
+;;   WORKTREE       — absolute path to the worktree you're working in
+;;   GIT_DIR_COMMON — absolute path to the shared .git dir (parent repo)
+;;
+;; Home-relative paths use the __HOME__ placeholder, which the
+;; claude-sandbox.sh launcher substitutes with $HOME at runtime.
+
+(version 1)
+(allow default)
+
+;; Block all writes, then re-allow a narrow set below.
+(deny file-write*)
+
+(allow file-write*
+  ;; The active worktree — primary work surface.
+  (subpath (param "WORKTREE"))
+
+  ;; Shared .git dir of the parent repo. Required so `git commit`,
+  ;; `git checkout`, etc. work from inside the worktree (objects and
+  ;; refs are written here, not in the worktree).
+  (subpath (param "GIT_DIR_COMMON"))
+
+  ;; System + per-user temp.
+  (subpath "/tmp")
+  (subpath "/private/tmp")
+  (subpath "/var/folders")
+  (subpath "/private/var/folders")
+
+  ;; Claude Code state: transcripts, projects, memory, settings, hooks.
+  (subpath "__HOME__/.claude")
+
+  ;; XDG-ish dirs used by uv, pip, npm, etc.
+  (subpath "__HOME__/.cache")
+  (subpath "__HOME__/.config")
+  (subpath "__HOME__/.local")
+  (subpath "__HOME__/.npm")
+
+  ;; macOS app caches/state for Claude and tooling.
+  (subpath "__HOME__/Library/Caches")
+  (subpath "__HOME__/Library/Application Support/Claude")
+  (subpath "__HOME__/Library/Application Support/claude-cli-nodejs")
+  (subpath "__HOME__/Library/Logs/Claude")
+  (subpath "__HOME__/Library/Preferences")
+
+  ;; Devices needed for normal CLI I/O.
+  (literal "/dev/null")
+  (literal "/dev/zero")
+  (literal "/dev/dtracehelper")
+  (literal "/dev/random")
+  (literal "/dev/urandom")
+  (regex #"^/dev/tty")
+  (regex #"^/dev/fd/")
+  (regex #"^/dev/ptmx")
+  (regex #"^/dev/pty")
+)

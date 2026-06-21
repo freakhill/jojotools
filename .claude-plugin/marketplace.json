@@ -1,0 +1,8 @@
+{
+  "name": "jojotools",
+  "owner": "jojo",
+  "plugins": [
+    { "name": "ai-router", "source": "./plugins/ai-router", "description": "Multi-model MCP router (Kimi/GLM/OpenRouter, ZDR-enforced) — bring your own keys." },
+    { "name": "jojo-skills", "source": "./plugins/jojo-skills", "description": "Agentic skills: FLO, monkeypaw, ayo, wololo, writing/executing-plans, subagent-driven-dev, init-repo/memory, git-worktrees." }
+  ]
+}

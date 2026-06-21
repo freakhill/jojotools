@@ -1,0 +1,627 @@
+{
+  "version": "2026-05",
+  "updated": "2026-05-19",
+  "privacy_policy": "STRICT NO-TRAINING. Every model here has a confirmed no-training policy. OpenRouter calls enforce this via provider.data_collection=deny (ZDR — zero data retention, no training). Subscription models (Kimi, Claude) operate under enterprise/API terms that explicitly exclude session training. Never add a model without documenting its no_training_source.",
+  "note": "Re-run update_models.py to refresh. Only no-training / ZDR-eligible models included.",
+  "subscription_models": {
+    "kimi": {
+      "tools": [
+        "kimi_ask",
+        "kimi_analyze",
+        "kimi_batch",
+        "kimi_swarm",
+        "kimi_research_compile"
+      ],
+      "default_model": "kimi-k2.7",
+      "available_models": [
+        "kimi-k2.7",
+        "kimi-k2.6",
+        "kimi-for-coding"
+      ],
+      "note": "Prefer these first — subscription cost is zero marginal per token. General tools default to K2.7 (latest); kimi_analyze uses kimi-for-coding (rolling coding alias, currently K2.7). Override per call with the tools' model= arg (kimi_ask/kimi_swarm). Endpoint is reachable only with a coding-agent User-Agent (KimiCLI/x; set via KIMI_USER_AGENT)."
+    },
+    "glm_coding_plan": {
+      "tools": [
+        "glm_ask"
+      ],
+      "default_model": "glm-5.1",
+      "available_models": [
+        "glm-5.1",
+        "glm-5",
+        "glm-5-turbo",
+        "glm-4.7",
+        "glm-4.6",
+        "glm-4.5",
+        "glm-4.5-air"
+      ],
+      "note": "z.ai GLM Coding Plan — flat-rate subscription. No marginal $ within plan caps. Use as alternative to Kimi for second-opinion runs or to spread load.",
+      "no_training_source": "z.ai commercial API / Coding Plan terms — paid subscription, sessions not used for training."
+    },
+    "claude_host": {
+      "models": [
+        "claude-opus-4-7",
+        "claude-sonnet-4-5",
+        "claude-haiku-4-5"
+      ],
+      "subscription": "Max (current host Claude generation — Fable 5 / Opus 4.8 era; see host-model policy in global CLAUDE.md)",
+      "note": "The host IS Claude with a Max subscription. For tasks Claude handles well natively — writing, reasoning, coding, analysis, Q&A — redirect back to the host when it has token headroom. Only offload to OR when: (a) host signals token pressure, (b) task is genuinely outside Claude's strengths (Chinese text, 2M context, image generation), or (c) host explicitly requests offload.",
+      "self_handle_hints": [
+        "writing",
+        "reasoning",
+        "coding",
+        "analysis",
+        "summarization",
+        "Q&A",
+        "math",
+        "planning",
+        "instruction-following"
+      ]
+    }
+  },
+  "image_generation_models": [
+    {
+      "id": "black-forest-labs/flux-1.1-pro",
+      "name": "Flux 1.1 Pro",
+      "type": "image_generation",
+      "cost_per_image": 0.04,
+      "resolution_options": [
+        "1024x1024",
+        "1440x1024",
+        "1024x1440",
+        "1920x1080"
+      ],
+      "zdr_eligible": true,
+      "strengths": [
+        "artistic",
+        "stylized",
+        "video-covers",
+        "high-detail",
+        "cinematic"
+      ],
+      "best_for": "Cinematic YouTube covers, stylized art, video thumbnail backgrounds, high-detail visuals",
+      "avoid_for": "Text-in-image (weak on typography vs DALL-E 3)",
+      "tier": "image_premium",
+      "no_training": true,
+      "no_training_source": "OpenRouter ZDR: provider.data_collection=deny routes exclusively to zero-data-retention providers (no storage, no training). See openrouter.ai/docs/guides/features/zdr"
+    },
+    {
+      "id": "black-forest-labs/flux-1-schnell",
+      "name": "Flux Schnell",
+      "type": "image_generation",
+      "cost_per_image": 0.002,
+      "resolution_options": [
+        "1024x1024"
+      ],
+      "zdr_eligible": true,
+      "strengths": [
+        "fast",
+        "cheap",
+        "iteration",
+        "prototyping"
+      ],
+      "best_for": "Rapid iteration on visual concepts, cheap bulk generation for storyboarding",
+      "avoid_for": "Final production images (use Flux 1.1 Pro or DALL-E 3)",
+      "tier": "image_fast_cheap",
+      "no_training": true,
+      "no_training_source": "OpenRouter ZDR: provider.data_collection=deny routes exclusively to zero-data-retention providers (no storage, no training). See openrouter.ai/docs/guides/features/zdr"
+    },
+    {
+      "id": "ideogram/ideogram-v2",
+      "name": "Ideogram V2",
+      "type": "image_generation",
+      "cost_per_image": 0.08,
+      "resolution_options": [
+        "1024x1024",
+        "1280x720",
+        "1920x1080"
+      ],
+      "zdr_eligible": true,
+      "strengths": [
+        "text-rendering",
+        "typography",
+        "logo",
+        "title-cards",
+        "youtube-text-overlays"
+      ],
+      "best_for": "YouTube title cards with text, logos, infographics — best text rendering of any image model",
+      "avoid_for": "Pure photorealism without text (DALL-E 3 or Flux better there)",
+      "tier": "image_premium",
+      "no_training": true,
+      "no_training_source": "OpenRouter ZDR: provider.data_collection=deny routes exclusively to zero-data-retention providers (no storage, no training). See openrouter.ai/docs/guides/features/zdr"
+    },
+    {
+      "id": "stability/stable-diffusion-xl",
+      "name": "Stable Diffusion XL",
+      "type": "image_generation",
+      "cost_per_image": 0.002,
+      "resolution_options": [
+        "1024x1024",
+        "1344x768",
+        "768x1344"
+      ],
+      "zdr_eligible": true,
+      "strengths": [
+        "cheap",
+        "customizable",
+        "open-weights",
+        "batch-generation"
+      ],
+      "best_for": "Cheap bulk image generation, custom fine-tuned styles, storyboard frames",
+      "avoid_for": "When quality > cost is the priority",
+      "tier": "image_fast_cheap",
+      "no_training": true,
+      "no_training_source": "OpenRouter ZDR: provider.data_collection=deny routes exclusively to zero-data-retention providers (no storage, no training). See openrouter.ai/docs/guides/features/zdr"
+    }
+  ],
+  "openrouter_models": [
+    {
+      "id": "deepseek/deepseek-v4-pro",
+      "name": "DeepSeek V4 Pro",
+      "input_cost_per_m": 0.435,
+      "output_cost_per_m": 0.87,
+      "context_k": 1050,
+      "zdr_eligible": true,
+      "strengths": [
+        "reasoning",
+        "math",
+        "code",
+        "cost-effective"
+      ],
+      "best_for": "Complex reasoning, math proofs, code when Kimi subscription unavailable",
+      "avoid_for": "Simple tasks (overqualified), Chinese text (use ERNIE)",
+      "tier": "primary",
+      "no_training": true,
+      "no_training_source": "DeepSeek commercial API terms + OpenRouter ZDR"
+    },
+    {
+      "id": "deepseek/deepseek-v4-flash",
+      "name": "DeepSeek V4 Flash",
+      "input_cost_per_m": 0.112,
+      "output_cost_per_m": 0.224,
+      "context_k": 1050,
+      "zdr_eligible": true,
+      "strengths": [
+        "fast-reasoning",
+        "cheap",
+        "high-throughput"
+      ],
+      "best_for": "Fast cheap reasoning, batch tasks, time-sensitive queries on budget",
+      "avoid_for": "Deep multi-step reasoning where accuracy matters most",
+      "tier": "fast_cheap",
+      "no_training": true,
+      "no_training_source": "DeepSeek commercial API terms + OpenRouter ZDR"
+    },
+    {
+      "id": "anthropic/claude-opus-4.7",
+      "name": "Claude Opus 4.7",
+      "input_cost_per_m": 5.0,
+      "output_cost_per_m": 25.0,
+      "context_k": 1000,
+      "zdr_eligible": true,
+      "never_via_or": true,
+      "never_via_or_reason": "Host IS Claude Code with Max subscription — use natively, paying OR would be double-billing",
+      "strengths": [
+        "complex-reasoning",
+        "writing",
+        "nuanced-tasks",
+        "instruction-following"
+      ],
+      "best_for": "Complex reasoning, long-form writing, nuanced analysis requiring judgment",
+      "avoid_for": "NEVER call via OpenRouter — use the host Claude natively (already covered by the Max subscription; calling via OR would double-charge).",
+      "tier": "premium",
+      "no_training": true,
+      "no_training_source": "Anthropic API policy: does not train on API traffic. See anthropic.com/legal/privacy + OpenRouter ZDR"
+    },
+    {
+      "id": "xiaomi/mimo-v2.5-pro",
+      "name": "MiMo-V2.5-Pro",
+      "input_cost_per_m": 1.0,
+      "output_cost_per_m": 3.0,
+      "context_k": 1050,
+      "zdr_eligible": true,
+      "strengths": [
+        "general-purpose",
+        "high-usage",
+        "reasoning",
+        "balanced"
+      ],
+      "best_for": "#1 by OpenRouter usage, strong general-purpose tasks, good price/performance",
+      "avoid_for": "Highly specialized tasks (use domain-specific models)",
+      "tier": "general",
+      "no_training": true,
+      "no_training_source": "OpenRouter ZDR (provider.data_collection=deny) — verify MiMo commercial terms"
+    },
+    {
+      "id": "xiaomi/mimo-v2-pro",
+      "name": "MiMo-V2-Pro",
+      "input_cost_per_m": 1.0,
+      "output_cost_per_m": 3.0,
+      "context_k": 1050,
+      "zdr_eligible": true,
+      "strengths": [
+        "reasoning",
+        "math",
+        "general"
+      ],
+      "best_for": "Strong reasoning and math tasks at a reasonable price point",
+      "avoid_for": "Tasks where MiMo-V2.5-Pro is preferred (newer)",
+      "tier": "general",
+      "no_training": true,
+      "no_training_source": "OpenRouter ZDR (provider.data_collection=deny) — verify MiMo commercial terms"
+    },
+    {
+      "id": "qwen/qwen3.5-plus-20260420",
+      "name": "Qwen3.5 Plus",
+      "input_cost_per_m": 0.3,
+      "output_cost_per_m": 1.8,
+      "context_k": 1000,
+      "zdr_eligible": true,
+      "strengths": [
+        "efficient",
+        "reasoning",
+        "multilingual",
+        "cost-effective"
+      ],
+      "best_for": "Efficient reasoning at low cost, good multilingual support, 1M context",
+      "avoid_for": "Frontier tasks requiring strongest available model",
+      "tier": "fast_cheap",
+      "no_training": true,
+      "no_training_source": "Alibaba Cloud API terms exclude training on API calls + OpenRouter ZDR"
+    },
+    {
+      "id": "moonshotai/kimi-k2.6",
+      "name": "Kimi K2.6 (OpenRouter — reference only)",
+      "input_cost_per_m": 0.73,
+      "output_cost_per_m": 3.49,
+      "context_k": 262,
+      "zdr_eligible": true,
+      "never_via_or": true,
+      "never_via_or_reason": "Full Moonshot/Kimi flat-rate subscription — ALL moonshotai/* models have no marginal $ via KIMI_API_KEY. Never pay OR per-token for these.",
+      "strengths": [
+        "agentic-coding",
+        "long-horizon",
+        "multi-step-planning"
+      ],
+      "best_for": "Use kimi_ask, kimi_analyze, kimi_swarm, kimi_batch via subscription (flat-rate; no marginal $)",
+      "avoid_for": "NEVER call via OpenRouter — all moonshotai/* models are blocked by _NEVER_VIA_OR guard",
+      "tier": "subscription_only",
+      "no_training": true,
+      "no_training_source": "Moonshot AI commercial subscription: API sessions not used for training (enterprise/API tier). Direct KIMI_API_KEY — not via OpenRouter."
+    },
+    {
+      "id": "minimax/minimax-m2.7",
+      "name": "MiniMax M2.7",
+      "input_cost_per_m": 0.279,
+      "output_cost_per_m": 1.2,
+      "context_k": 205,
+      "zdr_eligible": true,
+      "strengths": [
+        "creative-writing",
+        "multimodal",
+        "cheap",
+        "narrative"
+      ],
+      "best_for": "Creative writing, storytelling, multimodal tasks — specialized and cheap",
+      "avoid_for": "Hard reasoning tasks, >205K context, code analysis",
+      "tier": "creative",
+      "no_training": true,
+      "no_training_source": "OpenRouter ZDR (provider.data_collection=deny) — MiniMax commercial API"
+    },
+    {
+      "id": "google/gemini-3.1-flash-lite",
+      "name": "Gemini 3.1 Flash",
+      "input_cost_per_m": 0.25,
+      "output_cost_per_m": 1.5,
+      "context_k": 1050,
+      "zdr_eligible": true,
+      "strengths": [
+        "fast",
+        "cheap",
+        "multimodal",
+        "1M-context"
+      ],
+      "best_for": "Fast cheap multimodal tasks, large context at low cost, Google ecosystem",
+      "avoid_for": "Deep reasoning tasks, complex multi-step planning",
+      "tier": "fast_cheap",
+      "no_training": true,
+      "no_training_source": "Google Cloud API terms: customer data not used for training + OpenRouter ZDR"
+    },
+    {
+      "id": "google/gemini-3.1-pro-preview",
+      "name": "Gemini 3.1 Pro",
+      "input_cost_per_m": 2.0,
+      "output_cost_per_m": 12.0,
+      "context_k": 1050,
+      "zdr_eligible": true,
+      "strengths": [
+        "frontier-reasoning",
+        "science-reasoning",
+        "llm-as-judge",
+        "long-context"
+      ],
+      "best_for": "Frontier reasoning / LLM-as-judge (top GPQA Diamond 94.3, HLE 44.4). Reached only by explicit model id — NOT wired into any profile/task_hint auto-route. Purpose: FLO gated audit voice (jojo-skills feedback-loop-optimization, v1.9.4), per-token, dormant by default.",
+      "avoid_for": "Routine cheap tasks (use Flash). Voting FLO judge before a truth-RMSE calibration probe (audit-only until probed — FLO invariant I3).",
+      "tier": "frontier_reasoning",
+      "no_training": true,
+      "no_training_source": "Google paid Gemini API / Vertex: customer prompts+responses not used for training. OpenRouter ZDR (provider.data_collection=deny) routes only to a zero-retention Gemini endpoint and FAILS CLOSED if none is approved — this is the 'gated on approval' safety property. Verify the exact OpenRouter model id + that a ZDR Gemini provider exists via or_status / update_models.py --check-zdr when the key is provisioned."
+    }
+  ],
+  "profiles": {
+    "_comment": "5-tier transversal quality/cost profiles. Profile determines the default model when no specialist capability override applies. Specialist overrides (chinese, creative, eu_sovereignty) take precedence regardless of profile level. Subscription tiers (kimi subscription, host Claude) always win over per-token OR when task is in their domain — both are flat-rate paid subs, not free, but have no marginal $ within plan caps.",
+    "eco": {
+      "description": "Cheapest capable model — fast, good-enough quality for high-volume or low-stakes tasks",
+      "cost_target": "<$0.25/M input",
+      "primary_model": "deepseek/deepseek-v4-flash",
+      "fallback_model": "deepseek/deepseek-v4-flash",
+      "capability_overrides": {
+        "coding": "subscription:kimi",
+        "analysis": "subscription:kimi",
+        "creative": "minimax/minimax-m2.7",
+        "ultra_long": "deepseek/deepseek-v4-pro"
+      },
+      "note": "Specialized tasks still use their specialist model regardless of eco setting. Eco only controls the default for general/unspecialized tasks."
+    },
+    "mid": {
+      "description": "Balanced quality/cost — solid reasoning at a modest price",
+      "cost_target": "$0.25–$0.50/M input",
+      "primary_model": "qwen/qwen3.5-plus-20260420",
+      "fallback_model": "minimax/minimax-m2.7",
+      "capability_overrides": {
+        "coding": "subscription:kimi",
+        "analysis": "subscription:kimi",
+        "creative": "minimax/minimax-m2.7",
+        "ultra_long": "deepseek/deepseek-v4-pro"
+      },
+      "note": "Qwen3.5-plus: $0.30/M input, 1M context, efficient balanced reasoning. MiniMax M2.7 as fallback for creative-skewed tasks."
+    },
+    "intel": {
+      "description": "Best reasoning, cost-aware — deep analysis and multi-step logic without paying for branding",
+      "cost_target": "~$0.44/M input",
+      "primary_model": "deepseek/deepseek-v4-pro",
+      "fallback_model": "qwen/qwen3.5-plus-20260420",
+      "capability_overrides": {
+        "coding": "subscription:kimi",
+        "analysis": "subscription:kimi",
+        "creative": "minimax/minimax-m2.7",
+        "ultra_long": "deepseek/deepseek-v4-pro"
+      },
+      "note": "DeepSeek V4 Pro: 80.6% SWE-bench, $0.435/M in, 1.05M ctx. Best cost-adjusted reasoning model available via OR."
+    },
+    "max": {
+      "description": "Strongest available general model — no cost constraint, maximum quality",
+      "cost_target": "$1.00/M input",
+      "primary_model": "xiaomi/mimo-v2.5-pro",
+      "reasoning_model": "deepseek/deepseek-v4-pro",
+      "fallback_model": "qwen/qwen3.6-max-preview",
+      "capability_overrides": {
+        "coding": "subscription:kimi",
+        "analysis": "subscription:kimi",
+        "reasoning": "deepseek/deepseek-v4-pro",
+        "math": "deepseek/deepseek-v4-pro",
+        "creative": "minimax/minimax-m2.7",
+        "ultra_long": "deepseek/deepseek-v4-pro"
+      },
+      "note": "MiMo-V2.5-Pro: #1 by OpenRouter usage, strong general intelligence. For reasoning-heavy max tasks: deepseek-v4-pro (80.6% SWE-bench at 43% the cost)."
+    },
+    "research": {
+      "description": "Long-context synthesis and deep analysis — prioritize models with ≥500K context",
+      "cost_target": "~$0.44/M input",
+      "min_context_k": 500,
+      "primary_model": "deepseek/deepseek-v4-pro",
+      "fallback_model": "qwen/qwen3.5-plus-20260420",
+      "capability_overrides": {
+        "coding": "subscription:kimi_analyze",
+        "analysis": "subscription:kimi_analyze",
+        "creative": "minimax/minimax-m2.7",
+        "ultra_long": "deepseek/deepseek-v4-pro"
+      },
+      "note": "For coding/codebase analysis: use kimi_analyze (subscription, no marginal $, optimized). For very long documents (up to 1.05M tokens): deepseek-v4-pro. Qwen3.5-plus (1M ctx) as fallback. Models with <500K context are incompatible with this profile's intent."
+    }
+  },
+  "routing_rules": {
+    "coding": {
+      "subscription_first": "kimi_ask",
+      "note": "Kimi K2.6 subscription has no marginal $ — always prefer for coding",
+      "fallback": "deepseek/deepseek-v4-pro"
+    },
+    "analysis": {
+      "subscription_first": "kimi_analyze",
+      "note": "kimi_analyze handles full codebase ingestion — flat-rate sub, no marginal $",
+      "fallback": "deepseek/deepseek-v4-pro"
+    },
+    "creative": {
+      "primary": "minimax/minimax-m2.7",
+      "alternatives": [
+        "xiaomi/mimo-v2.5-pro",
+        "mistralai/mistral-medium-3.5",
+        "deepseek/deepseek-v4-pro"
+      ],
+      "note": "MiniMax specialized for creative writing. anthropic/* excluded — use host Claude natively (already covered by the Max sub; OR would double-charge)."
+    },
+    "ultra_long_context": {
+      "primary": "deepseek/deepseek-v4-pro",
+      "alternatives": [
+        "qwen/qwen3.5-plus-20260420",
+        "google/gemini-3.1-flash-lite"
+      ],
+      "note": "xAI/Grok banned. DeepSeek V4 Pro (1.05M ctx) is the best available long-context model. Qwen3.5-plus and Gemini Flash also have 1M+ context."
+    },
+    "reasoning": {
+      "subscription_first": "kimi_ask",
+      "fallback": "deepseek/deepseek-v4-pro",
+      "note": "Kimi handles most reasoning; DeepSeek V4 Pro for when Kimi falls short"
+    },
+    "premium": {
+      "primary": "xiaomi/mimo-v2.5-pro",
+      "alternatives": [
+        "deepseek/deepseek-v4-pro"
+      ],
+      "note": "MiMo-V2.5-Pro is #1 by OR usage, strong frontier general capability. anthropic/* excluded — use host Claude natively (already on the Max sub; OR would double-charge). openai/* and x-ai/* banned."
+    },
+    "fast_cheap": {
+      "primary": "deepseek/deepseek-v4-flash",
+      "alternatives": [
+        "minimax/minimax-m2.7",
+        "google/gemini-3.1-flash-lite",
+        "qwen/qwen3.5-plus-20260420"
+      ],
+      "note": "All under $0.30/M input — good for high-volume or low-stakes tasks"
+    },
+    "agentic": {
+      "subscription_first": "kimi_swarm",
+      "note": "kimi_swarm uses Kimi's native swarm — flat-rate sub, no marginal $, optimized for multi-step",
+      "fallback": "deepseek/deepseek-v4-pro"
+    },
+    "arithmetic_simple": {
+      "subscription_first": "kimi_ask",
+      "note": "Simple tasks do NOT warrant premium per-token models — Kimi sub has no marginal $ and is sufficient"
+    },
+    "image_generation": {
+      "youtube_thumbnail_text": "ideogram/ideogram-v2",
+      "youtube_thumbnail_cinematic": "black-forest-labs/flux-1.1-pro",
+      "youtube_thumbnail_photorealistic": "black-forest-labs/flux-1.1-pro",
+      "storyboard_iteration": "black-forest-labs/flux-1-schnell",
+      "bulk_frames": "stability/stable-diffusion-xl",
+      "note": "Image generation is the one category where Claude host cannot self-handle. Always route to OR image models. openai/dall-e-3 excluded (OpenAI banned)."
+    },
+    "host_self_handle": {
+      "triggers": [
+        "writing",
+        "reasoning",
+        "coding",
+        "analysis",
+        "summarization",
+        "Q&A",
+        "math",
+        "planning",
+        "structured output"
+      ],
+      "condition": "host_token_pressure=false",
+      "action": "return_to_host",
+      "message": "Your native Claude models (current host generation on your Max subscription — see host-model policy in global CLAUDE.md) are well-suited for this task. Handle it directly — no need to offload. Only call this MCP when you are token-constrained or the task needs a capability outside Claude's strengths (Chinese text, 2M context, image generation).",
+      "override": "If caller explicitly sets host_token_pressure=true, skip this check and route to OR/Kimi."
+    }
+  },
+  "routing_config": {
+    "_comment": "Defines the three-tier model access hierarchy. Edit this to add new subscriptions or change what the calling host can access natively. server.py reads this at startup — no code changes needed for new API key subscriptions.",
+    "tier_1_host_native": {
+      "description": "Models the calling host (Claude Code) can use natively under its Max subscription. Routing to these via OpenRouter would double-charge (paying OR per-token for capacity already covered by the sub). The MCP redirects back to the host for these tasks.",
+      "prefixes": [
+        "anthropic/"
+      ],
+      "model_ids": [],
+      "task_hints": [
+        "reasoning",
+        "coding",
+        "analysis",
+        "summarization",
+        "summarise",
+        "summarize",
+        "qa",
+        "q&a",
+        "math",
+        "maths",
+        "planning",
+        "structured output",
+        "instruction",
+        "brainstorm",
+        "edit",
+        "proofread",
+        "rewrite",
+        "explain",
+        "research"
+      ],
+      "note": "Host is Claude Code with Max subscription (current generation — Fable 5 / Opus 4.8 era; see host-model policy in global CLAUDE.md). Add prefix 'google/' here if you get a Gemini subscription in the future."
+    },
+    "tier_2_subscription_api": {
+      "description": "Models accessible via our own API keys — NOT via OpenRouter. Flat-rate subscription (paid up front, no marginal $ within plan caps). Always prefer over OpenRouter's per-token paid calls.",
+      "entries": [
+        {
+          "provider": "moonshotai",
+          "prefix": "moonshotai/",
+          "model_ids": [
+            "moonshotai/kimi-k2.7",
+            "moonshotai/kimi-k2.6",
+            "moonshotai/kimi-for-coding",
+            "moonshotai/kimi-k2"
+          ],
+          "env_var": "KIMI_API_KEY",
+          "base_url_env": "KIMI_BASE_URL",
+          "mcp_tools": [
+            "kimi_ask",
+            "kimi_analyze",
+            "kimi_swarm",
+            "kimi_batch",
+            "kimi_research_compile",
+            "kimi_sentiment_batch"
+          ],
+          "task_hints": [
+            "coding",
+            "code",
+            "debug",
+            "refactor",
+            "agentic",
+            "analysis",
+            "codebase",
+            "analyze",
+            "reasoning",
+            "math",
+            "research",
+            "batch"
+          ],
+          "note": "Full Moonshot AI subscription — ALL moonshotai/* models are covered. Add new kimi model IDs here when they launch."
+        },
+        {
+          "provider": "zai",
+          "prefix": "zai/",
+          "model_ids": [
+            "zai/glm-5.1",
+            "zai/glm-5",
+            "zai/glm-5-turbo",
+            "zai/glm-4.7",
+            "zai/glm-4.6",
+            "zai/glm-4.5",
+            "zai/glm-4.5-air"
+          ],
+          "env_var": "GLM_API_KEY",
+          "base_url_env": "GLM_BASE_URL",
+          "default_model": "glm-5.1",
+          "mcp_tools": [
+            "glm_ask",
+            "glm_status"
+          ],
+          "task_hints": [
+            "second-opinion",
+            "alt-coding",
+            "glm"
+          ],
+          "note": "z.ai GLM Coding Plan subscription — flat-rate sub at api.z.ai/api/coding/paas/v4. OpenAI-compatible. Add new GLM model IDs here as z.ai releases them."
+        }
+      ],
+      "note": "Add new entries here when you get additional API subscriptions (e.g. DeepSeek direct API, Mistral subscription)."
+    },
+    "tier_3_openrouter": {
+      "description": "All remaining models — paid per token via OpenRouter. Only use when tier 1 and tier 2 cannot handle the task.",
+      "env_var": "OPENROUTER_API_KEY",
+      "zdr_enforcement": "provider.data_collection=deny on every request",
+      "specializations": {
+        "ultra_long_context": "deepseek/deepseek-v4-pro",
+        "creative_writing": "minimax/minimax-m2.7",
+        "frontier_capability": "xiaomi/mimo-v2.5-pro",
+        "fast_cheap": "deepseek/deepseek-v4-flash",
+        "image_text": "ideogram/ideogram-v2",
+        "image_cinematic": "black-forest-labs/flux-1.1-pro",
+        "image_fast": "black-forest-labs/flux-1-schnell"
+      }
+    },
+    "banned_providers": {
+      "_comment": "Providers refused entirely, by user choice. Edit here to add/remove. Enforced in _or_chat and or_compare.",
+      "prefixes": [
+        "openai/",
+        "x-ai/"
+      ],
+      "model_ids": [],
+      "reason": "User preference — OpenAI (openai/) and xAI (x-ai/) excluded from all routing"
+    }
+  }
+}
