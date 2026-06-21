@@ -377,8 +377,11 @@ def render_report(data: dict, graph_paths: list[Path]) -> None:
                  "score. A cross-model prior-art review (`probes/EVOLUTION-HARNESS-ayo-PRIOR-ART.md`) "
                  "DECIDED AGAINST an absolute LLM-judged prose-quality axis (uncalibrated, "
                  "score-compresses, judge non-stationarity, Goodhart). The Goodhart-resistant quality "
-                 "axis is behavioural — run FLO on the corpus tasks and score outputs (EB8 Stage-3, "
-                 "deferred); pairwise-relative judging is the cheaper middle if ever needed.")
+                 "axis is behavioural and is now MEASURED: a blind 3-family forced-ranking study (full "
+                 "v1.9.12 vs minimal baseline, 6 tasks x n=6, 648 decisions) found full > minimal 0.548 "
+                 "(p=0.017), concentrated in fidelity/teaching tasks; recent v1.2->v1.9.12 increments "
+                 "added no marginal gain. So the capability curve below is NOT a quality curve — "
+                 "capability rose while marginal quality stayed flat (`probes/EB8-STAGE3-MATRIX-FINDINGS.md`).")
     lines.append("")
     for p in graph_paths:
         lines.append(f"![{p.stem}]({p.name})")
