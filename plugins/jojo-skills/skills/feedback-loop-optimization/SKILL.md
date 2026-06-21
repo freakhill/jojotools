@@ -72,6 +72,8 @@ genome = {eval_mechanism: cross_family, diversity_method: map_elites, mutation_t
 
 Iterative improvement via parallel Worker subagents + isolated Evaluator subagents. Workers propose; evaluators score. The two roles never merge in any subagent context (anti-sycophancy). Loop runs until stuck or max iterations.
 
+> **Measured scope — when is the full loop worth its cost?** A blind, 3-judge-family forced-ranking study (this full protocol vs a ~210-line minimal baseline; 6 diverse tasks × n=6 reps; 648 cross-version decisions) found the protocol buys **modest but real** quality overall (win-rate **0.548, p=0.017**), **concentrated in fidelity / teaching-correctness tasks**: faithful compression that must preserve every fact (0.676, p=0.0003) and accurate technical teaching with a decision rule (0.648, p=0.003). It was a **wash** on open-ended professional artifacts (blameless postmortem, migration plan) and on persuasion, and recent feature increments added **no** measurable marginal gain. Practical read: reach for the full loop on correctness/fidelity-bearing outputs; for well-templated artifacts or pure persuasion, a light single pass is usually enough.
+
 ---
 
 ## Phase 0 — Pre-flight
