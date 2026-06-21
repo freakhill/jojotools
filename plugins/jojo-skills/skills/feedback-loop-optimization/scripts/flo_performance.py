@@ -263,9 +263,131 @@ if have3:
              f"The 2-arm run called compliance a tie (100%/100%) only because both arms had the loop.")
     L.append("")
 
+# ── 4-arm: is FLO's gain just buyable effort? (none / nonemax / minimal / full) ──
+def _v4(fn):
+    if "_nonemax_" in fn:
+        return "nonemax"
+    if "_none_" in fn:
+        return "none"
+    return "v0.7" if "_v0.7_" in fn else "v1.9.12"
+ARMS4 = ["none", "nonemax", "v0.7", "v1.9.12"]
+CON4 = [("full>nonemax", "v1.9.12", "nonemax"), ("nonemax>none", "nonemax", "none"),
+        ("nonemax>min", "nonemax", "v0.7"), ("full>none", "v1.9.12", "none"),
+        ("min>none", "v0.7", "none"), ("full>min", "v1.9.12", "v0.7")]
+p4pool = {c[0]: [0, 0] for c in CON4}
+p4rank = {a: [] for a in ARMS4}
+comp4 = {a: [0, 0] for a in ARMS4}
+p4rows = []
+try:
+    for r in rows:
+        tk = r["task"]
+        bm4 = json.loads((OUT / f"power4_{tk}_blind_map.json").read_text())
+        byv = {a: [] for a in ARMS4}
+        for lab, fn in bm4.items():
+            byv[_v4(fn)].append(lab)
+        rk = {j: json.loads((OUT / f"power4_{tk}_rank_responses" / f"{j}.json").read_text()) for j in JUDGES}
+        mr = {v: sum(rk[j][x] for j in JUDGES for x in ls) / (len(JUDGES) * len(ls)) for v, ls in byv.items()}
+        for v in byv:
+            p4rank[v] += [rk[j][x] for j in JUDGES for x in byv[v]]
+        cells = {}
+        for nm, a, b in CON4:
+            w = sum(1 for j in JUDGES for fa in byv[a] for fb in byv[b] if rk[j][fa] < rk[j][fb])
+            nn = len(JUDGES) * len(byv[a]) * len(byv[b])
+            cells[nm] = (w / nn, binom_two_sided(w, nn))
+            p4pool[nm][0] += w
+            p4pool[nm][1] += nn
+        lo, hi = CAPS3[tk]
+        for v in ARMS4:
+            for rep in range(1, 7):
+                fp = OUT / f"{tk}_{v}_r{rep}.md"
+                if fp.exists():
+                    wc = len(fp.read_text().strip().split())
+                    comp4[v][0] += (lo <= wc <= hi)
+                    comp4[v][1] += 1
+        p4rows.append((tk, mr, cells))
+    have4 = all(p4pool[c[0]][1] for c in CON4)
+except FileNotFoundError:
+    have4 = False
+
+if have4:
+    pooled4 = {nm: (w / n, binom_two_sided(w, n)) for nm, (w, n) in p4pool.items()}
+    mr4 = {v: round(sum(p4rank[v]) / len(p4rank[v]), 2) for v in p4rank}
+    data["four_arm"] = {
+        "pooled_mean_rank_null12.5": mr4,
+        "pooled": {nm: {"win_rate": round(wr_, 3), "p_value": round(p_, 4)} for nm, (wr_, p_) in pooled4.items()},
+        "word_cap_compliance": {v: round(comp4[v][0] / comp4[v][1], 3) for v in comp4},
+    }
+    (REPORT_DIR / "performance-data.json").write_text(json.dumps(data, indent=2))
+    fnm_wr, fnm_p = pooled4["full>nonemax"]
+    nmn_wr, nmn_p = pooled4["nonemax>none"]
+    # headline verdict on the confound
+    if fnm_wr > 0.5 and fnm_p < 0.05:
+        head = (f"**the full protocol STILL beats a max-effort single pass** ({fnm_wr:.3f}, p={fnm_p:.4f}) "
+                f"— FLO's gain is NOT just buyable reasoning compute; the loop's structure adds value beyond effort.")
+    elif fnm_wr < 0.5 and fnm_p < 0.05:
+        head = (f"**a max-effort single pass beats the full protocol** ({fnm_wr:.3f}, p={fnm_p:.4f}) "
+                f"— cranking effort RECOVERS (and exceeds) FLO's gain. Re-examine the protocol's value-add.")
+    else:
+        head = (f"**full and a max-effort single pass are indistinguishable** ({fnm_wr:.3f}, p={fnm_p:.4f}, n.s.) "
+                f"— on this instrument the protocol's quality edge is not separable from simply maxing effort.")
+    if nmn_wr > 0.5 and nmn_p < 0.05:
+        eff = f"Max effort DID lift single-pass quality over xhigh ({nmn_wr:.3f}, p={nmn_p:.4f})."
+    elif nmn_wr < 0.5 and nmn_p < 0.05:
+        eff = f"Max effort HURT single-pass quality vs xhigh ({nmn_wr:.3f}, p={nmn_p:.4f})."
+    else:
+        eff = f"Max vs xhigh single-pass quality: indistinguishable ({nmn_wr:.3f}, p={nmn_p:.4f}, n.s.)."
+    cc4 = data["four_arm"]["word_cap_compliance"]
+    L.append("## Is FLO's gain just buyable effort? (4-arm: + single-pass at MAX effort)")
+    L.append("")
+    L.append("A 4th **nonemax** arm — single-pass, no protocol, host **Opus 4.8 at MAX reasoning effort** "
+             "(the `none` arm runs single-pass at the usual xhigh; nonemax is identical except effort=max). "
+             "If cranking effort matches/beats `full`, FLO's win reduces to \"more thinking\"; if `full` still "
+             "wins, the loop's structure adds value beyond raw compute. All 4 arms (24 candidates/task) blind "
+             "force-ranked together by 3 families.")
+    L.append("")
+    L.append(f"> **Verdict:** {head} {eff}")
+    L.append("")
+    L.append(f"> **Objective compliance:** max effort buys **zero** constraint compliance — nonemax "
+             f"**{cc4['nonemax']:.0%}** = none **{cc4['none']:.0%}** (both single-pass), while both FLO arms "
+             f"hit **100%**. The iterative loop, not reasoning effort, is what enforces word caps.")
+    L.append("")
+    L.append("| arm | single-pass? | effort | pooled mean rank (null 12.5) | word-cap compliance |")
+    L.append("|---|---|---|---|---|")
+    L.append(f"| none | yes | xhigh | {mr4['none']} | {cc4['none']:.0%} |")
+    L.append(f"| nonemax | yes | **max** | {mr4['nonemax']} | {cc4['nonemax']:.0%} |")
+    L.append(f"| v0.7 (minimal FLO) | no | xhigh | {mr4['v0.7']} | {cc4['v0.7']:.0%} |")
+    L.append(f"| v1.9.12 (full FLO) | no | xhigh | {mr4['v1.9.12']} | {cc4['v1.9.12']:.0%} |")
+    L.append("")
+    L.append("**Key contrasts (pooled win-rate, exact-binomial two-sided p):**")
+    L.append("")
+    L.append("| contrast | meaning | win-rate | p |")
+    L.append("|---|---|---|---|")
+    NAMES4 = {"full>nonemax": "full FLO vs max single-pass (the decider)",
+              "nonemax>none": "max vs xhigh single-pass (effort effect)",
+              "nonemax>min": "max single-pass vs minimal FLO",
+              "full>none": "full FLO vs xhigh single-pass",
+              "min>none": "minimal FLO vs xhigh single-pass",
+              "full>min": "full vs minimal FLO"}
+    for nm in ["full>nonemax", "nonemax>none", "nonemax>min", "full>none", "min>none", "full>min"]:
+        wr_, p_ = pooled4[nm]
+        L.append(f"| {nm} | {NAMES4[nm]} | {wr_:.3f}{' *' if p_ < 0.05 else ''} | {p_:.4f} |")
+    L.append("")
+    L.append("Per-task mean rank (null 12.5, lower=better):")
+    L.append("")
+    L.append("| task | none | nonemax | min | full |")
+    L.append("|---|---|---|---|---|")
+    for tk, mr, _cells in p4rows:
+        L.append(f"| {tk} | {mr['none']:.1f} | {mr['nonemax']:.1f} | {mr['v0.7']:.1f} | {mr['v1.9.12']:.1f} |")
+    L.append("")
+    L.append("_Caveat: none/min/full were generated in prior sessions (same host Opus 4.8, inherited xhigh "
+             "effort per protocol records); nonemax is fresh. Same verbatim worker prompt + tasks + blinding "
+             "— the effort contrast is clean modulo mild temporal drift._")
+    L.append("")
+
 L.append("---")
 L.append("_method: blind 3-family forced ranking, n=6/arm/task, exact binomial two-sided; 2-arm (power_*) "
-         "+ 3-arm no-FLO control (power3_*). Regenerate: `uv run scripts/flo_performance.py`._")
+         "+ 3-arm no-FLO control (power3_*) + 4-arm effort confound (power4_*). "
+         "Regenerate: `uv run scripts/flo_performance.py`._")
 (REPORT_DIR / "PERFORMANCE.md").write_text("\n".join(L))
 
 print(f"wrote {REPORT_DIR.relative_to(SKILL_DIR)}/PERFORMANCE.md + performance-data.json + win_rate_by_task.png")
