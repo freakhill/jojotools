@@ -179,9 +179,93 @@ L.append("|---|---|---|")
 for r in rows:
     L.append(f"| {r['task']} | {r['n3_full_mean_rank_of9']} | {r['v1.9.12_mean_rank']} |")
 L.append("")
+# ── No-FLO control (3-arm: full / minimal / none) ──
+def _v3(fn):
+    if "_none_" in fn:
+        return "none"
+    return "v0.7" if "_v0.7_" in fn else "v1.9.12"
+CON = [("full>none", "v1.9.12", "none"), ("min>none", "v0.7", "none"), ("full>min", "v1.9.12", "v0.7")]
+CAPS3 = {"T1": (380, 420), "T2": (0, 500), "T3": (0, 120), "T4": (0, 600), "T5": (0, 350), "T6": (0, 450)}
+p3pool = {c[0]: [0, 0] for c in CON}
+p3rank = {"none": [], "v0.7": [], "v1.9.12": []}
+comp = {"none": [0, 0], "v0.7": [0, 0], "v1.9.12": [0, 0]}
+p3rows = []
+try:
+    for r in rows:
+        tk = r["task"]
+        bm3 = json.loads((OUT / f"power3_{tk}_blind_map.json").read_text())
+        byv = {"none": [], "v0.7": [], "v1.9.12": []}
+        for lab, fn in bm3.items():
+            byv[_v3(fn)].append(lab)
+        rk = {j: json.loads((OUT / f"power3_{tk}_rank_responses" / f"{j}.json").read_text()) for j in JUDGES}
+        mr = {v: sum(rk[j][x] for j in JUDGES for x in ls) / (len(JUDGES) * len(ls)) for v, ls in byv.items()}
+        for v in byv:
+            p3rank[v] += [rk[j][x] for j in JUDGES for x in byv[v]]
+        cells = {}
+        for nm, a, b in CON:
+            w = sum(1 for j in JUDGES for fa in byv[a] for fb in byv[b] if rk[j][fa] < rk[j][fb])
+            nn = len(JUDGES) * len(byv[a]) * len(byv[b])
+            cells[nm] = (w / nn, binom_two_sided(w, nn))
+            p3pool[nm][0] += w
+            p3pool[nm][1] += nn
+        lo, hi = CAPS3[tk]
+        for v in ("none", "v0.7", "v1.9.12"):
+            for rep in range(1, 7):
+                fp = OUT / f"{tk}_{v}_r{rep}.md"
+                if fp.exists():
+                    wc = len(fp.read_text().strip().split())
+                    comp[v][0] += (lo <= wc <= hi)
+                    comp[v][1] += 1
+        p3rows.append((tk, mr, cells))
+    have3 = all(p3pool[c[0]][1] for c in CON)
+except FileNotFoundError:
+    have3 = False
+
+if have3:
+    pooled3 = {nm: (w / n, binom_two_sided(w, n)) for nm, (w, n) in p3pool.items()}
+    data["three_arm"] = {
+        "pooled_mean_rank": {v: round(sum(p3rank[v]) / len(p3rank[v]), 2) for v in p3rank},
+        "pooled": {nm: {"win_rate": round(wr, 3), "p_value": round(p, 4)} for nm, (wr, p) in pooled3.items()},
+        "word_cap_compliance": {v: round(comp[v][0] / comp[v][1], 3) for v in comp},
+    }
+    (REPORT_DIR / "performance-data.json").write_text(json.dumps(data, indent=2))
+    L.append("## No-FLO control — does ANY FLO beat doing nothing? (3-arm)")
+    L.append("")
+    L.append("The intercept the 2-arm sweep was missing. A third **none** arm (single-pass, no protocol — "
+             "no plan/self-critique/iteration), same tasks + constraints + blinding, n=6/arm, ranked blind "
+             "against full + minimal in one 18-candidate forced ranking per task (3 judge families).")
+    L.append("")
+    mr3 = data["three_arm"]["pooled_mean_rank"]
+    L.append(f"> **Verdict:** the FLO ladder sits above no-FLO (mean rank null=9.5): **none {mr3['none']} "
+             f"> minimal {mr3['v0.7']} > full {mr3['v1.9.12']}**. Full protocol beats no-FLO robustly "
+             f"({pooled3['full>none'][0]:.3f}, p={pooled3['full>none'][1]:.4f}); minimal beats it only "
+             f"marginally ({pooled3['min>none'][0]:.3f}, p={pooled3['min>none'][1]:.4f}) — and on T1/T3 a "
+             f"weak loop ranks **significantly BELOW single-pass** (the full protocol repairs it). The "
+             f"accretion buys robustness — not backfiring — more than peak quality.")
+    L.append("")
+    L.append("| task | none | min | full | full>none | min>none | full>min |")
+    L.append("|---|---|---|---|---|---|---|")
+    for tk, mr, cells in p3rows:
+        def c(nm):
+            wr, p = cells[nm]
+            return f"{wr:.2f}{'*' if p < 0.05 else ''}"
+        L.append(f"| {tk} | {mr['none']:.1f} | {mr['v0.7']:.1f} | {mr['v1.9.12']:.1f} | "
+                 f"{c('full>none')} | {c('min>none')} | {c('full>min')} |")
+    pm = {nm: pooled3[nm] for nm in ("full>none", "min>none", "full>min")}
+    L.append(f"| **pooled** | {mr3['none']} | {mr3['v0.7']} | {mr3['v1.9.12']} | "
+             f"**{pm['full>none'][0]:.3f}** (p={pm['full>none'][1]:.4f}) | "
+             f"**{pm['min>none'][0]:.3f}** (p={pm['min>none'][1]:.4f}) | "
+             f"{pm['full>min'][0]:.3f} (p={pm['full>min'][1]:.4f}) |")
+    L.append("")
+    cc = data["three_arm"]["word_cap_compliance"]
+    L.append(f"**Objective word-cap compliance** (the loop, not the accretion, buys it): "
+             f"none **{cc['none']:.0%}** vs minimal {cc['v0.7']:.0%} vs full {cc['v1.9.12']:.0%}. "
+             f"The 2-arm run called compliance a tie (100%/100%) only because both arms had the loop.")
+    L.append("")
+
 L.append("---")
-L.append("_method: blind 3-family forced ranking, n=6/version/task, exact binomial two-sided. "
-         "Data: `probes/eb8-matrix/out/power_*`. Regenerate: `uv run scripts/flo_performance.py`._")
+L.append("_method: blind 3-family forced ranking, n=6/arm/task, exact binomial two-sided; 2-arm (power_*) "
+         "+ 3-arm no-FLO control (power3_*). Regenerate: `uv run scripts/flo_performance.py`._")
 (REPORT_DIR / "PERFORMANCE.md").write_text("\n".join(L))
 
 print(f"wrote {REPORT_DIR.relative_to(SKILL_DIR)}/PERFORMANCE.md + performance-data.json + win_rate_by_task.png")
