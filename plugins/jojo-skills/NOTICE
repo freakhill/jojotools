@@ -1,0 +1,10 @@
+jojo-skills
+Copyright (c) 2026 jojo
+Licensed under GPL-3.0-or-later (see LICENSE).
+
+These skills are original works. The process-discipline skills (systematic-debugging,
+verification-before-completion, brainstorming, test-driven-development) and the workflow skills
+(using-git-worktrees, writing-plans, executing-plans, subagent-driven-development, init-memory,
+init-repo) were authored CLEAN-ROOM: independently reimplemented from the canonical software-
+engineering literature (Beck, Zeller, Agans, Fowler, Meyer, Brooks, the Design Council, et al.)
+via a cross-model research pass, not copied or derived from any other plugin's text.
