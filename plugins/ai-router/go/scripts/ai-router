@@ -1,0 +1,27 @@
+#!/bin/sh
+# ai-router launcher — selects the binary matching this host's OS/arch and execs it.
+# Layout: this script sits next to bin/ai-router-<os>-<arch>[.exe].
+# Covers macOS + Linux. On Windows, point .mcp.json directly at the .exe (or add a .cmd shim).
+set -eu
+
+dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+os=$(uname -s 2>/dev/null || echo unknown)
+arch=$(uname -m 2>/dev/null || echo unknown)
+
+case "$os" in
+  Darwin) os=darwin ;;
+  Linux)  os=linux ;;
+  *) echo "ai-router: unsupported OS '$os' (use the platform .exe directly on Windows)" >&2; exit 1 ;;
+esac
+
+case "$arch" in
+  x86_64|amd64)  arch=amd64 ;;
+  arm64|aarch64) arch=arm64 ;;
+  *) echo "ai-router: unsupported arch '$arch'" >&2; exit 1 ;;
+esac
+
+bin="$dir/bin/ai-router-$os-$arch"
+[ -x "$bin" ] || { echo "ai-router: missing binary $bin (run 'make all')" >&2; exit 1; }
+
+exec "$bin" "$@"
