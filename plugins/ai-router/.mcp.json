@@ -1,7 +1,8 @@
 {
   "mcpServers": {
     "ai-router": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/go/dist/ai-router"
+      "command": "sh",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/go/dist/ai-router"]
     }
   }
 }

@@ -1,8 +1,9 @@
 {
-  "_comment": "Drop-in replacement for the Python server's .mcp.json. After `make dist`, point the plugin at the launcher (macOS/Linux). On Windows, set command to the matching .exe under go/dist/bin/. The Go binary embeds models.json and fetches keys from `op` JIT exactly like the Python server.",
+  "_comment": "Drop-in replacement for the Python server's .mcp.json. After `make dist`, run the launcher via sh — ${CLAUDE_PLUGIN_ROOT} is only expanded in args, not in command (same reason the Python config used command:'uv' + the path in args). On Windows, use command 'cmd' with args ['/c', the matching .exe under go/dist/bin/]. The Go binary embeds models.json and fetches keys from `op` JIT exactly like the Python server.",
   "mcpServers": {
     "ai-router": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/go/dist/ai-router"
+      "command": "sh",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/go/dist/ai-router"]
     }
   }
 }
