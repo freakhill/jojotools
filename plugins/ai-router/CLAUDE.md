@@ -2,6 +2,8 @@
 
 Personal multi-model AI router. Routes tasks to the right model across three access tiers, enforces no-training (ZDR) on every call, and exposes 15 MCP tools to Claude Code.
 
+> **Runtime: Go binary** (`go/`, single static binary per platform, `models.json` embedded — no `uv`/Python at runtime). `.mcp.json` launches `go/dist/ai-router`, which selects the host binary under `go/dist/bin/`. Build with `cd go && make dist`; see `go/README.md`. The routing semantics, tiers, and tools below are unchanged from the original Python server; code-location references point into `go/*.go`. The only remaining Python is `update_models.py` (standalone yearly catalog-maintenance script).
+
 ---
 
 ## Architecture — Three Tiers
@@ -21,14 +23,14 @@ Tier 3 │ OpenRouter (per-token paid) │ everything    │ op://claude/openrou
 
 **Banned (never used):** `openai/*`, `x-ai/*`
 
-**Narrow exception allowlist (OFF by default) — GPT-5.5:** a 1-id allowlist `_GPT_AUDIT_MODEL_IDS` may pass the `openai/` ban *only* when the exception is enabled — by EITHER the env opt-in `AI_ROUTER_ALLOW_GPT55_AUDIT=1` OR a non-empty chat-acceptance gate file at `~/.config/ai-router/gpt55-accepted` (`server.py` `_gpt_audit_enabled` / `_gpt_audit_exception_allowed`; every other `openai/*` and all `x-ai/*` stay refused on every path). The gate file is written only after the typed-phrase + type-back self-abasement ceremony (FLO SKILL.md GPT-5.5 gate); it persists the exception with no env var or restart and is **revoked by deleting the file** (`rm ~/.config/ai-router/gpt55-accepted`). The one allowlisted id:
+**Narrow exception allowlist (OFF by default) — GPT-5.5:** a 1-id allowlist `_GPT_AUDIT_MODEL_IDS` may pass the `openai/` ban *only* when the exception is enabled — by EITHER the env opt-in `AI_ROUTER_ALLOW_GPT55_AUDIT=1` OR a non-empty chat-acceptance gate file at `~/.config/ai-router/gpt55-accepted` (`go/routing.go` `gptAuditEnabled` / `gptAuditExceptionAllowed`; every other `openai/*` and all `x-ai/*` stay refused on every path). The gate file is written only after the typed-phrase + type-back self-abasement ceremony (FLO SKILL.md GPT-5.5 gate); it persists the exception with no env var or restart and is **revoked by deleting the file** (`rm ~/.config/ai-router/gpt55-accepted`). The one allowlisted id:
 - `openai/gpt-5.5-pro` — GPT-5.5 Pro (deep-reasoning / "thinking" tier). Serves BOTH as the strong-gated FLO evaluator audit voice (the SKILL.md gate adds a typed-phrase confirmation + a type-back self-abasement re-confirm — retype a subagent-composed berating, no web search — on top of the env flag) AND as the general callable added 2026-06-14. The originally-specced `openai/gpt-5.5-thinking` does **not** exist on OpenRouter (verified S14b, 2026-06-14: "not a valid model ID"), so the calibrated `gpt-5.5-pro` fills the FLO-voice role.
 
 ZDR still applies (`provider.data_collection=deny` on every call); S14b (2026-06-14) confirmed a zero-retention `openai/gpt-5.5(-pro)` endpoint IS reachable — contrary to the earlier "enterprise-gated / fails closed" assumption. Not catalogued in `models.json` and never auto-routed — reachable only by explicit `or_ask(model=…)`. The hole is exactly 1 id wide and shuts the moment the gate is removed.
 
 **Terminology:** Tier 1 and Tier 2 are paid subscriptions (flat-rate, not free); they have no per-token marginal cost within plan caps. Tier 3 (OR) is per-token paid. Subscription tiers always win — the router redirects to Kimi or host Claude before spending OpenRouter tokens, because pushing tokens through a subscription has zero marginal cost while pushing through OR has direct per-token cost.
 
-**Tier 3 key is fetched JIT from 1Password (2026-06-14):** the server no longer reads `OPENROUTER_API_KEY` from the environment. On first `or_*` use it reads the key from `op://claude/openrouter-api-key` (vault `claude`, item `openrouter-api-key`) via the `op` CLI, caches it for the process lifetime, and never logs the value (`server.py:_read_or_key_from_op` / `_get_or_api_key`). No standing export and no restart — but **`op` must be signed in** (or 1Password CLI app integration enabled), otherwise `or_*` report the key unavailable (expected when signed out, not a bug). The standalone `update_models.py` maintenance script still accepts the key via env (`OPENROUTER_API_KEY=sk-or-... python update_models.py …`).
+**Tier 3 key is fetched JIT from 1Password (2026-06-14):** the server no longer reads `OPENROUTER_API_KEY` from the environment. On first `or_*` use it reads the key from `op://claude/openrouter-api-key` (vault `claude`, item `openrouter-api-key`) via the `op` CLI, caches it for the process lifetime, and never logs the value (`go/keys.go:readORKeyFromOp` / `getORKey`). No standing export and no restart — but **`op` must be signed in** (or 1Password CLI app integration enabled), otherwise `or_*` report the key unavailable (expected when signed out, not a bug). The standalone `update_models.py` maintenance script still accepts the key via env (`OPENROUTER_API_KEY=sk-or-... uv run update_models.py …`).
 
 ---
 
@@ -248,29 +250,34 @@ The host then calls the `Read` tool on the file path to consume the full output.
 
 **Redirecting overflow files:** set `AI_ROUTER_FALLBACK_DIR` (default `/tmp`).
 
-**Testing the fallback:** `uv run --with httpx --with mcp python -c "import server; print(server._output_or_file('X' * 10000, 'test'))"` forces an overflow with a synthetic input.
+**Testing the fallback:** `cd go && go test -run TestOutputOrFile -v .` exercises the overflow-to-file path (`go/http.go:outputOrFile`).
 
 ---
 
 ## Yearly Maintenance
 
+`update_models.py` is the only Python left — a self-contained PEP 723 uv script
+(deps resolved on run). It refreshes `models.json`; the server itself is the Go
+binary under `go/` (which **embeds** `models.json`, so rerun `cd go && make dist`
+after any catalog change to re-embed it).
+
 ```bash
-cd ~/dotfiles/claude/plugins/ai-router
-OPENROUTER_API_KEY=sk-or-... python update_models.py --check           # diff pricing
-OPENROUTER_API_KEY=sk-or-... python update_models.py --check --update  # write changes
-OPENROUTER_API_KEY=sk-or-... python update_models.py --check-zdr       # verify ZDR
-OPENROUTER_API_KEY=sk-or-... python update_models.py --check-training  # audit no-training flags
+OPENROUTER_API_KEY=sk-or-... uv run update_models.py --check           # diff pricing
+OPENROUTER_API_KEY=sk-or-... uv run update_models.py --check --update  # write changes
+OPENROUTER_API_KEY=sk-or-... uv run update_models.py --check-zdr       # verify ZDR
+OPENROUTER_API_KEY=sk-or-... uv run update_models.py --check-training  # audit no-training flags
+cd go && make dist                                                     # re-embed + rebuild binaries
 ```
 
 **Add a new subscription** (e.g. future DeepSeek direct API):
-Edit `routing_config.tier_2_subscription_api.entries` in `models.json` — no code change needed.
+Edit `routing_config.tier_2_subscription_api.entries` in `models.json`, then `cd go && make dist`.
 
 **Ban a provider:**
-Edit `routing_config.banned_providers.prefixes` in `models.json`.
+Edit `routing_config.banned_providers.prefixes` in `models.json`, then `cd go && make dist`.
 
 **Run tests:**
 ```bash
-uv run --with pytest --with pytest-asyncio python -m pytest test_routing.py test_capabilities.py -v
+cd go && go test ./...
 ```
 
 ---

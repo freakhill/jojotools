@@ -1,6 +1,16 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["httpx"]
+# ///
 """
 update_models.py — Yearly refresh script for models.json.
+
+Self-contained uv script (PEP 723) — run with `./update_models.py` or
+`uv run update_models.py`; httpx is resolved into an ephemeral env. This is the
+only Python left in the plugin: a standalone maintenance CLI that refreshes the
+models.json catalog. The MCP server itself is the Go binary under go/ (which
+embeds models.json — rerun `cd go && make dist` after updating the catalog).
 
 PRIVACY POLICY: We only ever use models that do NOT train on our sessions.
 Every model in this catalog must have a confirmed no-training policy.
