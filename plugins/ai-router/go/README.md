@@ -29,52 +29,49 @@ keys.go        JIT secret fetch from 1Password via `op` (+ pure field-pickers)
 http.go        OR/Kimi/GLM chat, image gen, probe, ZDR injection, parallel helper, overflow-to-file
 dirread.go     codebase reader for kimi_analyze + analysis format helpers
 tools.go       all 15 MCP tool registrations + handlers
+run.sh         build-on-first-use launcher (what .mcp.json invokes)
 *_test.go      routing/capability unit tests + httptest end-to-end (ZDR, ban/block, temp-pin)
 ```
 
-## Build
+## How it runs: build-on-install
+
+No binaries are committed. `.mcp.json` launches `run.sh`, which **builds the
+server from source the first time it runs** (and whenever a `.go`/`go.mod`/
+`models.json` file changes), caches it at `go/.bin/ai-router`, and execs it.
+Subsequent launches reuse the cached binary instantly.
+
+```json
+{ "mcpServers": { "ai-router": { "command": "sh", "args": ["${CLAUDE_PLUGIN_ROOT}/go/run.sh"] } } }
+```
+
+(`${CLAUDE_PLUGIN_ROOT}` only expands in `args`, not `command` — so launch via
+`sh` with the path in `args`. See `mcp.json.example`.)
+
+**Requires the Go toolchain on the target.** MCP servers get a minimal PATH, so
+`run.sh` searches the usual install locations for `go` (Homebrew, `/usr/local/go`,
+`$HOME/go/bin`, `$GOROOT`, …) and prints an install hint to stderr if missing.
+
+**First-launch latency:** the first connect builds (a few seconds; longer on a
+machine that must download module deps). If your MCP client times out on that
+first build, just reconnect — the binary is cached by then. All wrapper output
+goes to stderr, so it never corrupts the MCP stdout stream.
+
+### Manual / dev builds
 
 ```bash
 make build    # native binary for this host → ./ai-router
 make test     # unit + httptest suite
-make all      # cross-compile all 5 targets → dist/bin/
-make dist     # all + bundle the launcher → dist/
 ```
 
-Cross-compile targets (static, no toolchain needed on the host):
+### Optional: prebuilt cross-platform binaries
+
+If you'd rather hand someone a binary (no Go on their machine), `make dist`
+cross-compiles all 5 targets + a `uname`-selecting launcher under `dist/`
+(gitignored). Point `.mcp.json` at `dist/ai-router` instead of `run.sh`.
 
 ```
-darwin/arm64    macOS aarch64
-linux/amd64     Linux x86_64
-linux/arm64     Linux aarch64
-windows/amd64   Windows x86_64
-windows/arm64   Windows aarch64
+darwin/arm64  linux/amd64  linux/arm64  windows/amd64  windows/arm64   (static, CGO_ENABLED=0)
 ```
-
-## "The right one gets selected"
-
-`make dist` produces a launcher + one binary per platform:
-
-```
-dist/ai-router                       # launcher: maps `uname -s`/`uname -m` → execs the match
-dist/bin/ai-router-darwin-arm64
-dist/bin/ai-router-linux-amd64
-dist/bin/ai-router-linux-arm64
-dist/bin/ai-router-windows-amd64.exe
-dist/bin/ai-router-windows-arm64.exe
-```
-
-To switch the plugin from Python to Go, point `.mcp.json` at the launcher (see
-`mcp.json.example`):
-
-```json
-{ "mcpServers": { "ai-router": { "command": "${CLAUDE_PLUGIN_ROOT}/go/dist/ai-router" } } }
-```
-
-The launcher covers macOS + Linux. Windows has no POSIX shell by default, so a
-Windows install points `command` at the matching `.exe` directly. (Alternative
-for wider distribution: install-time selection — copy the matching binary to a
-stable `bin/ai-router(.exe)` once and always point at that path.)
 
 ## Parity with the Python server
 

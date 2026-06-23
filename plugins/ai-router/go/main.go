@@ -10,7 +10,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const version = "2.0.0-go"
+const version = "2.1.0-go"
 
 func main() {
 	if err := loadCatalog(); err != nil {

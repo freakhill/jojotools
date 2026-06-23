@@ -2,7 +2,7 @@
 
 Personal multi-model AI router. Routes tasks to the right model across three access tiers, enforces no-training (ZDR) on every call, and exposes 15 MCP tools to Claude Code.
 
-> **Runtime: Go binary** (`go/`, single static binary per platform, `models.json` embedded — no `uv`/Python at runtime). `.mcp.json` launches `go/dist/ai-router`, which selects the host binary under `go/dist/bin/`. Build with `cd go && make dist`; see `go/README.md`. The routing semantics, tiers, and tools below are unchanged from the original Python server; code-location references point into `go/*.go`. The only remaining Python is `update_models.py` (standalone yearly catalog-maintenance script).
+> **Runtime: Go server** (`go/`, single static binary, `models.json` embedded — no `uv`/Python at runtime). Built **from source on first use**: `.mcp.json` runs `sh go/run.sh`, which builds the binary into `go/.bin/` once (rebuilding when sources change) and execs it — so the Go toolchain must be present on the host. No binaries are committed. See `go/README.md`. The routing semantics, tiers, and tools below are unchanged from the original Python server; code-location references point into `go/*.go`. The only remaining Python is `update_models.py` (standalone yearly catalog-maintenance script).
 
 ---
 
@@ -258,22 +258,23 @@ The host then calls the `Read` tool on the file path to consume the full output.
 
 `update_models.py` is the only Python left — a self-contained PEP 723 uv script
 (deps resolved on run). It refreshes `models.json`; the server itself is the Go
-binary under `go/` (which **embeds** `models.json`, so rerun `cd go && make dist`
-after any catalog change to re-embed it).
+binary under `go/`, which **embeds** `models.json`. After any catalog change the
+binary is **rebuilt automatically on the next MCP launch** (`run.sh` detects
+`models.json` is newer than `go/.bin/ai-router` and rebuilds) — no manual step.
 
 ```bash
 OPENROUTER_API_KEY=sk-or-... uv run update_models.py --check           # diff pricing
 OPENROUTER_API_KEY=sk-or-... uv run update_models.py --check --update  # write changes
 OPENROUTER_API_KEY=sk-or-... uv run update_models.py --check-zdr       # verify ZDR
 OPENROUTER_API_KEY=sk-or-... uv run update_models.py --check-training  # audit no-training flags
-cd go && make dist                                                     # re-embed + rebuild binaries
+# next ai-router launch picks up the new models.json automatically (rebuild-on-change)
 ```
 
 **Add a new subscription** (e.g. future DeepSeek direct API):
-Edit `routing_config.tier_2_subscription_api.entries` in `models.json`, then `cd go && make dist`.
+Edit `routing_config.tier_2_subscription_api.entries` in `models.json` — rebuilt on next launch.
 
 **Ban a provider:**
-Edit `routing_config.banned_providers.prefixes` in `models.json`, then `cd go && make dist`.
+Edit `routing_config.banned_providers.prefixes` in `models.json` — rebuilt on next launch.
 
 **Run tests:**
 ```bash

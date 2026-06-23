@@ -1,4 +1,6 @@
-# local dev build (the native `make build` output). The cross-compiled
-# release binaries under dist/ ARE committed so `marketplace install` delivers
-# a working server with no Go toolchain on the target.
+# Build artifacts — never committed. The server is built from source on first
+# use by run.sh (build-on-install model); optional prebuilt release binaries
+# go under dist/ via `make dist`.
 /ai-router
+/.bin/
+/dist/
