@@ -1,6 +1,6 @@
 {
   "name": "ai-router",
-  "description": "Multi-model MCP router (Kimi/GLM/OpenRouter, ZDR-enforced). Bring your own keys.",
-  "version": "1.0.0",
+  "description": "Multi-model MCP router (Kimi/GLM/OpenRouter, ZDR-enforced). Bring your own keys. Go binary — no runtime deps.",
+  "version": "2.0.0",
   "author": { "name": "jojo" }
 }
