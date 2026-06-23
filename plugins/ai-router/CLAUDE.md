@@ -2,7 +2,7 @@
 
 Personal multi-model AI router. Routes tasks to the right model across three access tiers, enforces no-training (ZDR) on every call, and exposes 15 MCP tools to Claude Code.
 
-> **Runtime: Go server** (`go/`, single static binary, `models.json` embedded — no `uv`/Python at runtime). Built **from source on first use**: `.mcp.json` runs `sh go/run.sh`, which builds the binary into `go/.bin/` once (rebuilding when sources change) and execs it — so the Go toolchain must be present on the host. No binaries are committed. See `go/README.md`. The routing semantics, tiers, and tools below are unchanged from the original Python server; code-location references point into `go/*.go`. The only remaining Python is `update_models.py` (standalone yearly catalog-maintenance script).
+> **Runtime: Go server** (`go/`, single static binary, `models.json` embedded — no `uv`/Python at runtime). Built **from source on first use**: `.mcp.json` runs `sh go/run.sh`, which compiles the binary into a content-hashed cache (`${XDG_CACHE_HOME:-~/.cache}/ai-router/<os>-<arch>-<srchash>/`) and execs it. The cache is keyed by a hash of the build inputs, so it's reused across plugin updates / reinstalls / restarts whenever the source is unchanged — only a real code change triggers one rebuild (primeable ahead of time via `sh go/run.sh </dev/null` from any checkout of the same revision). The Go toolchain must be present on the host. No binaries are committed. See `go/README.md`. The routing semantics, tiers, and tools below are unchanged from the original Python server; code-location references point into `go/*.go`. The only remaining Python is `update_models.py` (standalone yearly catalog-maintenance script).
 
 ---
 

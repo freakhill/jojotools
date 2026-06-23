@@ -36,9 +36,7 @@ run.sh         build-on-first-use launcher (what .mcp.json invokes)
 ## How it runs: build-on-install
 
 No binaries are committed. `.mcp.json` launches `run.sh`, which **builds the
-server from source the first time it runs** (and whenever a `.go`/`go.mod`/
-`models.json` file changes), caches it at `go/.bin/ai-router`, and execs it.
-Subsequent launches reuse the cached binary instantly.
+server from source the first time a given source revision runs**, then execs it.
 
 ```json
 { "mcpServers": { "ai-router": { "command": "sh", "args": ["${CLAUDE_PLUGIN_ROOT}/go/run.sh"] } } }
@@ -47,14 +45,36 @@ Subsequent launches reuse the cached binary instantly.
 (`${CLAUDE_PLUGIN_ROOT}` only expands in `args`, not `command` — so launch via
 `sh` with the path in `args`. See `mcp.json.example`.)
 
+### Stable, content-hashed build cache
+
+The compiled binary is cached **outside** the plugin dir at:
+
+```
+${XDG_CACHE_HOME:-~/.cache}/ai-router/<os>-<arch>-<srchash>/ai-router
+```
+
+`<srchash>` is a hash of the build inputs (`*.go`, `go.mod`, `go.sum`,
+`models.json` — *not* `run.sh`). Consequences:
+
+- The build is **reused across plugin updates, reinstalls, and Claude Code
+  restarts** — anytime the source is byte-identical, the key matches and launch
+  is instant (~0.1 s). Only a genuine code change yields a new key (one rebuild).
+- A build can be **primed ahead of an update**: run `sh go/run.sh </dev/null`
+  from any checkout of the same revision (your workspace clone, say) — it builds
+  into the shared cache, and the matching install then launches with no rebuild.
+- Builds are written atomically (temp + rename), so a build killed mid-way (e.g.
+  by an MCP startup timeout) never leaves a half-binary — the next launch rebuilds.
+- Old builds for the platform are pruned, so the cache holds one ~11 MB binary.
+
 **Requires the Go toolchain on the target.** MCP servers get a minimal PATH, so
 `run.sh` searches the usual install locations for `go` (Homebrew, `/usr/local/go`,
 `$HOME/go/bin`, `$GOROOT`, …) and prints an install hint to stderr if missing.
 
-**First-launch latency:** the first connect builds (a few seconds; longer on a
-machine that must download module deps). If your MCP client times out on that
-first build, just reconnect — the binary is cached by then. All wrapper output
-goes to stderr, so it never corrupts the MCP stdout stream.
+**First-launch latency (new code only):** the first connect to a *new* revision
+builds (~2–3 s; longer if module deps must download). If your MCP client times
+out on that first build, reconnect — the binary is cached by then — or prime it
+ahead of time as above. All wrapper output goes to stderr, so it never corrupts
+the MCP stdout stream.
 
 ### Manual / dev builds
 
