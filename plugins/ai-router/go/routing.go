@@ -180,6 +180,30 @@ func gptAuditExceptionAllowed(model string) bool {
 	return gptAuditModelIDs[model] && gptAuditEnabled()
 }
 
+// --- Sakana no-training host gate (mirrors the GPT-5.5 gate) ---
+//
+// Sakana trains on prompts by default; the repo ships the loud non-ZDR warning.
+// A host where the user has flipped the console opt-out (or accepts the policy)
+// marks Sakana safe LOCALLY via env AI_ROUTER_SAKANA_NOTRAINING=1 or a non-empty
+// gate file ~/.config/ai-router/sakana-notraining-confirmed. This is host-only —
+// the committed default stays the warning, so marketplace users aren't misled.
+func sakanaNoTrainingConfirmed() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("AI_ROUTER_SAKANA_NOTRAINING"))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	gate := os.Getenv("AI_ROUTER_SAKANA_GATE_FILE")
+	if gate == "" {
+		home, _ := os.UserHomeDir()
+		gate = filepath.Join(home, ".config", "ai-router", "sakana-notraining-confirmed")
+	}
+	b, err := os.ReadFile(gate)
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(b)) != ""
+}
+
 // --- alternatives tables (server.py:_build_alternatives_table / _build_creative_alternatives_table) ---
 
 func buildAlternativesTable(recommended string) string {

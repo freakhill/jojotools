@@ -5,6 +5,8 @@ package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -96,6 +98,29 @@ func TestSakanaChatClampsMinTokens(t *testing.T) {
 	}
 	if (*got)["max_tokens"] != float64(16) {
 		t.Errorf("max_tokens not clamped to 16: %v", (*got)["max_tokens"])
+	}
+}
+
+func TestSakanaNoTrainingGate(t *testing.T) {
+	// Point the gate file at a non-existent path so the real ~/.config gate (if
+	// present on this host) can't leak into the test.
+	t.Setenv("AI_ROUTER_SAKANA_NOTRAINING", "")
+	t.Setenv("AI_ROUTER_SAKANA_GATE_FILE", filepath.Join(t.TempDir(), "absent"))
+	if sakanaNoTrainingConfirmed() {
+		t.Error("default (no env, no file) should be false")
+	}
+	t.Setenv("AI_ROUTER_SAKANA_NOTRAINING", "1")
+	if !sakanaNoTrainingConfirmed() {
+		t.Error("env truthy should confirm")
+	}
+	t.Setenv("AI_ROUTER_SAKANA_NOTRAINING", "")
+	f := filepath.Join(t.TempDir(), "gate")
+	if err := os.WriteFile(f, []byte("ok\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AI_ROUTER_SAKANA_GATE_FILE", f)
+	if !sakanaNoTrainingConfirmed() {
+		t.Error("non-empty gate file should confirm")
 	}
 }
 

@@ -437,7 +437,11 @@ func sakanaAsk(ctx context.Context, in SakanaAskInput) string {
 		return "Error: " + err.Error()
 	}
 	model := orDefaultStr(in.Model, sakanaModel)
-	return outputOrFile(fmt.Sprintf("[Model: sakana/%s | per-token paid | ZDR: NOT enforced — see sakana_status]\n\n", model)+result, "sakana_ask")
+	trainNote := "ZDR: NOT enforced — see sakana_status"
+	if sakanaNoTrainingConfirmed() {
+		trainNote = "no-training: confirmed on this host"
+	}
+	return outputOrFile(fmt.Sprintf("[Model: sakana/%s | per-token paid | %s]\n\n", model, trainNote)+result, "sakana_ask")
 }
 
 func sakanaStatus(ctx context.Context) string {
@@ -448,12 +452,23 @@ func sakanaStatus(ctx context.Context) string {
 	}
 	fmt.Fprintf(&b, "Sakana Fugu (sakana_ask) — Fable-tier multi-agent frontier model\n")
 	fmt.Fprintf(&b, "API key : %s\n", keyState)
-	b.WriteString(
-		"\n!!! NO-TRAINING WARNING !!!\n" +
-			"  Sakana TRAINS on API prompts BY DEFAULT. There is no per-call ZDR switch\n" +
-			"  (unlike OpenRouter). The no-training guarantee holds ONLY after you flip the\n" +
-			"  training opt-out toggle in the console: https://console.sakana.ai (account → privacy).\n" +
-			"  Zero-retention is NOT confirmed available. Treat as a non-ZDR route until you opt out.\n")
+	if sakanaNoTrainingConfirmed() {
+		b.WriteString(
+			"\nNo-training: CONFIRMED on this host ✓\n" +
+				"  The training opt-out has been acknowledged here, so Sakana is treated as safe\n" +
+				"  for use on this machine. Gate: env AI_ROUTER_SAKANA_NOTRAINING or the file\n" +
+				"  ~/.config/ai-router/sakana-notraining-confirmed. Remove the gate (rm the file /\n" +
+				"  unset the env) to restore the default non-ZDR warning.\n")
+	} else {
+		b.WriteString(
+			"\n!!! NO-TRAINING WARNING !!!\n" +
+				"  Sakana TRAINS on API prompts BY DEFAULT. There is no per-call ZDR switch\n" +
+				"  (unlike OpenRouter). The no-training guarantee holds ONLY after you flip the\n" +
+				"  training opt-out toggle in the console: https://console.sakana.ai (account → privacy).\n" +
+				"  Zero-retention is NOT confirmed available. Treat as a non-ZDR route until you opt out.\n" +
+				"  Once opted out, mark this host safe: touch ~/.config/ai-router/sakana-notraining-confirmed\n" +
+				"  (with any content) or set AI_ROUTER_SAKANA_NOTRAINING=1.\n")
+	}
 	fmt.Fprintf(&b, "\nBilling : per-token paid (fugu $1.50/$6.00 per M, fugu-ultra $5.00/$30.00 per M) — NOT a flat-rate sub.\n")
 	if getSakanaKey() == "" {
 		return b.String()
@@ -902,7 +917,11 @@ func orStatus(ctx context.Context) string {
 			}
 		case "sakana":
 			if getSakanaKey() != "" {
-				keyState = "set ✓ (per-token; NOT ZDR by default — see sakana_status)"
+				if sakanaNoTrainingConfirmed() {
+					keyState = "set ✓ (per-token; no-training confirmed on this host)"
+				} else {
+					keyState = "set ✓ (per-token; NOT ZDR by default — see sakana_status)"
+				}
 			}
 		case "exa":
 			if getExaKey() != "" {
