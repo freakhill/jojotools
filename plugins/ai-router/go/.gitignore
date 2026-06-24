@@ -2,5 +2,6 @@
 # use by run.sh (build-on-install model); optional prebuilt release binaries
 # go under dist/ via `make dist`.
 /ai-router
+/airouter
 /.bin/
 /dist/

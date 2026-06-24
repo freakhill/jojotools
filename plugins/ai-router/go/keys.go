@@ -79,8 +79,9 @@ func pickKimiKey(fields []opField) string {
 	return pickByPrefixThenID(fields, []string{"sk-"}, []string{"credential", "password", "notesPlain"})
 }
 
-// pickGLMKey: GLM keys have no fixed prefix — secure-note/credential first, else any value.
-func pickGLMKey(fields []opField) string {
+// pickNoPrefixKey: keys with no fixed prefix — secure-note/credential/password
+// first, else the first non-empty value. Shared by GLM, Sakana, and Exa.
+func pickNoPrefixKey(fields []opField) string {
 	if v := pickByPrefixThenID(fields, nil, []string{"credential", "password", "notesPlain"}); v != "" {
 		return v
 	}
@@ -91,6 +92,10 @@ func pickGLMKey(fields []opField) string {
 	}
 	return ""
 }
+
+func pickGLMKey(fields []opField) string    { return pickNoPrefixKey(fields) }
+func pickSakanaKey(fields []opField) string { return pickNoPrefixKey(fields) }
+func pickExaKey(fields []opField) string    { return pickNoPrefixKey(fields) }
 
 func readORKeyFromOp() string { return pickORKey(opItemFields("openrouter-api-key")) }
 
@@ -144,4 +149,48 @@ func getGLMKey() string {
 		}
 	})
 	return glmKey
+}
+
+// --- Sakana key (op://claude/sakana-api-key, env SAKANA_API_KEY fallback) ---
+
+var (
+	sakanaKeyOnce sync.Once
+	sakanaKey     string
+)
+
+func readSakanaKeyFromOp() string { return pickSakanaKey(opItemFields("sakana-api-key")) }
+
+func getSakanaKey() string {
+	if sakanaKey != "" {
+		return sakanaKey
+	}
+	sakanaKeyOnce.Do(func() {
+		sakanaKey = readSakanaKeyFromOp()
+		if sakanaKey == "" {
+			sakanaKey = os.Getenv("SAKANA_API_KEY")
+		}
+	})
+	return sakanaKey
+}
+
+// --- Exa key (op://claude/exa-ai-api-key, env EXA_API_KEY fallback) ---
+
+var (
+	exaKeyOnce sync.Once
+	exaKey     string
+)
+
+func readExaKeyFromOp() string { return pickExaKey(opItemFields("exa-ai-api-key")) }
+
+func getExaKey() string {
+	if exaKey != "" {
+		return exaKey
+	}
+	exaKeyOnce.Do(func() {
+		exaKey = readExaKeyFromOp()
+		if exaKey == "" {
+			exaKey = os.Getenv("EXA_API_KEY")
+		}
+	})
+	return exaKey
 }

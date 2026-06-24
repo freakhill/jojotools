@@ -1,7 +1,7 @@
 {
-  "version": "2026-05",
-  "updated": "2026-05-19",
-  "privacy_policy": "STRICT NO-TRAINING. Every model here has a confirmed no-training policy. OpenRouter calls enforce this via provider.data_collection=deny (ZDR — zero data retention, no training). Subscription models (Kimi, Claude) operate under enterprise/API terms that explicitly exclude session training. Never add a model without documenting its no_training_source.",
+  "version": "2026-06",
+  "updated": "2026-06-24",
+  "privacy_policy": "STRICT NO-TRAINING by default. OpenRouter calls enforce this via provider.data_collection=deny (ZDR — zero data retention, no training). Subscription models (Kimi, GLM, Claude) operate under enterprise/API terms that exclude session training. Never add a model without documenting its no_training_source. DOCUMENTED EXCEPTION: Sakana Fugu (sakana_*) TRAINS on API prompts by default — no-training applies only after the user flips the console opt-out (console.sakana.ai); it is wired in as an explicit, flagged non-ZDR route (no_training=false in its tier-2 entry, surfaced by sakana_status and or_status) and is never auto-routed. Exa (exa_*) is a web-search/retrieval API, not a generative train-on-prompts LLM.",
   "note": "Re-run update_models.py to refresh. Only no-training / ZDR-eligible models included.",
   "subscription_models": {
     "kimi": {
@@ -596,6 +596,54 @@
             "glm"
           ],
           "note": "z.ai GLM Coding Plan subscription — flat-rate sub at api.z.ai/api/coding/paas/v4. OpenAI-compatible. Add new GLM model IDs here as z.ai releases them."
+        },
+        {
+          "provider": "sakana",
+          "prefix": "sakana/",
+          "model_ids": [
+            "sakana/fugu",
+            "sakana/fugu-ultra"
+          ],
+          "env_var": "SAKANA_API_KEY",
+          "base_url_env": "SAKANA_BASE_URL",
+          "default_model": "fugu",
+          "mcp_tools": [
+            "sakana_ask",
+            "sakana_status"
+          ],
+          "task_hints": [
+            "fugu",
+            "sakana",
+            "frontier-orchestration"
+          ],
+          "billing": "per-token paid (fugu $1.50/$6.00 per M, fugu-ultra $5.00/$30.00 per M); Sakana subscription plans also exist",
+          "no_training": false,
+          "zdr": false,
+          "no_training_source": "OPT-OUT REQUIRED — NOT confirmed no-training. Sakana TRAINS on API prompts by default; the no-training guarantee holds only after flipping the console opt-out (console.sakana.ai → account/privacy). No confirmed zero-retention, and there is NO per-call ZDR switch (unlike OpenRouter). sakana_status surfaces this; treat as a non-ZDR route until opted out.",
+          "note": "Sakana Fugu — Fable-tier multi-agent frontier model that orchestrates a pool of LLMs behind one OpenAI-compatible endpoint (api.sakana.ai/v1). fugu = fast default; fugu-ultra = deep multi-step reasoning, 272K ctx. Reasoning effort high|xhigh via the effort= arg. Direct key → blocked from OR routing; never auto-routed."
+        },
+        {
+          "provider": "exa",
+          "prefix": "exa/",
+          "model_ids": [],
+          "env_var": "EXA_API_KEY",
+          "base_url_env": "EXA_BASE_URL",
+          "mcp_tools": [
+            "exa_search",
+            "exa_answer",
+            "exa_contents",
+            "exa_status"
+          ],
+          "task_hints": [
+            "web search",
+            "search",
+            "retrieval",
+            "rag",
+            "exa"
+          ],
+          "billing": "per-token/credit paid (per-search + per-content)",
+          "no_training": true,
+          "note": "Exa web search / retrieval API (api.exa.ai; x-api-key auth, NOT chat-completions). exa_search (type auto|fast|instant|deep-lite|deep|deep-reasoning, highlights/text, outputSchema synthesis), exa_answer (grounded answer + citations), exa_contents (extract known URLs). A search tool, not a generative LLM — listed with an empty-id prefix only to keep it out of OR routing and visible in or_status."
         }
       ],
       "note": "Add new entries here when you get additional API subscriptions (e.g. DeepSeek direct API, Mistral subscription)."

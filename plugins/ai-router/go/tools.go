@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -33,6 +34,22 @@ func registerTools(s *mcp.Server) {
 		func(ctx context.Context, in GLMAskInput) string { return glmAsk(ctx, in) })
 	addNoArg(s, "glm_status", "Check connectivity to the z.ai GLM endpoint + API key.",
 		func(ctx context.Context) string { return glmStatus(ctx) })
+
+	// Sakana Fugu (frontier multi-agent model; per-token paid). NOT ZDR by default — see sakana_status.
+	add(s, "sakana_ask", "Single-turn query to Sakana Fugu, a Fable-tier multi-agent frontier model (default fugu; model=fugu-ultra for hard multi-step reasoning, 272K ctx). effort=high|xhigh. WARNING: trains on prompts unless you opted out in the Sakana console — run sakana_status.",
+		func(ctx context.Context, in SakanaAskInput) string { return sakanaAsk(ctx, in) })
+	addNoArg(s, "sakana_status", "Check Sakana Fugu connectivity + API key, and the training/no-training opt-out state.",
+		func(ctx context.Context) string { return sakanaStatus(ctx) })
+
+	// Exa (web search / retrieval; per-token paid)
+	add(s, "exa_search", "Web search via Exa. type=auto|fast|instant|deep-lite|deep|deep-reasoning. Returns ranked results with highlights (or text). Pass output_schema (JSON) for grounded structured synthesis.",
+		func(ctx context.Context, in ExaSearchInput) string { return exaSearch(ctx, in) })
+	add(s, "exa_answer", "Grounded answer to a question via Exa /answer, with source citations. Use for question-first lookups; use exa_search when you need to inspect raw results.",
+		func(ctx context.Context, in ExaAnswerInput) string { return exaAnswer(ctx, in) })
+	add(s, "exa_contents", "Extract clean parsed content (highlights or text) for URLs you already have, via Exa /contents.",
+		func(ctx context.Context, in ExaContentsInput) string { return exaContents(ctx, in) })
+	addNoArg(s, "exa_status", "Check connectivity to the Exa search API + API key.",
+		func(ctx context.Context) string { return exaStatus(ctx) })
 
 	// OpenRouter (Tier 3, per-token)
 	add(s, "or_ask", "Route a single-turn query to the best model via OpenRouter. model:auto|id, profile:eco|mid|intel|max|research.",
@@ -129,6 +146,40 @@ type GLMAskInput struct {
 	Temperature      float64 `json:"temperature,omitempty"`
 	Model            string  `json:"model,omitempty"`
 	IncludeReasoning bool    `json:"include_reasoning,omitempty"`
+}
+
+type SakanaAskInput struct {
+	Prompt           string  `json:"prompt" jsonschema:"the prompt to send"`
+	System           string  `json:"system,omitempty"`
+	MaxTokens        int     `json:"max_tokens,omitempty" jsonschema:"default 16384"`
+	Temperature      float64 `json:"temperature,omitempty" jsonschema:"default 0.7"`
+	Model            string  `json:"model,omitempty" jsonschema:"fugu (default) | fugu-ultra"`
+	Effort           string  `json:"effort,omitempty" jsonschema:"reasoning effort: high|xhigh (also max). Omit for the model default."`
+	IncludeReasoning bool    `json:"include_reasoning,omitempty"`
+}
+
+type ExaSearchInput struct {
+	Query          string   `json:"query" jsonschema:"the search query"`
+	Type           string   `json:"type,omitempty" jsonschema:"auto|fast|instant|deep-lite|deep|deep-reasoning (default auto)"`
+	NumResults     int      `json:"num_results,omitempty" jsonschema:"1-100, default 10"`
+	Text           bool     `json:"text,omitempty" jsonschema:"return full page text instead of just highlights"`
+	MaxCharacters  int      `json:"max_characters,omitempty" jsonschema:"cap on per-result text length when text=true (default 8000)"`
+	IncludeDomains []string `json:"include_domains,omitempty"`
+	ExcludeDomains []string `json:"exclude_domains,omitempty"`
+	Category       string   `json:"category,omitempty" jsonschema:"company|people|research paper|news|personal site|financial report"`
+	SystemPrompt   string   `json:"system_prompt,omitempty" jsonschema:"synthesis/source-preference instructions (use with output_schema)"`
+	OutputSchema   string   `json:"output_schema,omitempty" jsonschema:"a JSON-schema string; when set, Exa returns grounded structured synthesis in output.content"`
+}
+
+type ExaAnswerInput struct {
+	Query string `json:"query" jsonschema:"the question to answer"`
+	Text  bool   `json:"text,omitempty" jsonschema:"include full source text in the citations"`
+}
+
+type ExaContentsInput struct {
+	Urls          []string `json:"urls" jsonschema:"URLs to fetch clean content for"`
+	Text          bool     `json:"text,omitempty" jsonschema:"return full text instead of highlights"`
+	MaxCharacters int      `json:"max_characters,omitempty" jsonschema:"cap on per-URL text length when text=true (default 8000)"`
 }
 
 type OrAskInput struct {
@@ -369,6 +420,230 @@ func glmStatus(ctx context.Context) string {
 	}
 	status := probeEndpoint(ctx, glmBaseURL, glmModel, glmHeaders(), "GLM_API_KEY")
 	fmt.Fprintf(&b, "\nGLM Coding Plan (glm_ask)\n  url   : %s  model=%s\n  status: %s\n", glmBaseURL, glmModel, status)
+	return b.String()
+}
+
+// =========================================================================
+// Sakana Fugu tools
+// =========================================================================
+
+func sakanaAsk(ctx context.Context, in SakanaAskInput) string {
+	temp := in.Temperature
+	if temp == 0 {
+		temp = 0.7
+	}
+	result, err := sakanaChat(ctx, msgs(in.System, in.Prompt), orDefaultInt(in.MaxTokens, defaultMaxTokens), temp, in.Model, in.Effort, in.IncludeReasoning)
+	if err != nil {
+		return "Error: " + err.Error()
+	}
+	model := orDefaultStr(in.Model, sakanaModel)
+	return outputOrFile(fmt.Sprintf("[Model: sakana/%s | per-token paid | ZDR: NOT enforced — see sakana_status]\n\n", model)+result, "sakana_ask")
+}
+
+func sakanaStatus(ctx context.Context) string {
+	var b strings.Builder
+	keyState := "NOT SET — add op://claude/sakana-api-key or export SAKANA_API_KEY"
+	if getSakanaKey() != "" {
+		keyState = "set ✓ (op://claude/sakana-api-key)"
+	}
+	fmt.Fprintf(&b, "Sakana Fugu (sakana_ask) — Fable-tier multi-agent frontier model\n")
+	fmt.Fprintf(&b, "API key : %s\n", keyState)
+	b.WriteString(
+		"\n!!! NO-TRAINING WARNING !!!\n" +
+			"  Sakana TRAINS on API prompts BY DEFAULT. There is no per-call ZDR switch\n" +
+			"  (unlike OpenRouter). The no-training guarantee holds ONLY after you flip the\n" +
+			"  training opt-out toggle in the console: https://console.sakana.ai (account → privacy).\n" +
+			"  Zero-retention is NOT confirmed available. Treat as a non-ZDR route until you opt out.\n")
+	fmt.Fprintf(&b, "\nBilling : per-token paid (fugu $1.50/$6.00 per M, fugu-ultra $5.00/$30.00 per M) — NOT a flat-rate sub.\n")
+	if getSakanaKey() == "" {
+		return b.String()
+	}
+	status := probeModelsEndpoint(ctx, sakanaBaseURL, sakanaHeaders(), "SAKANA_API_KEY")
+	fmt.Fprintf(&b, "\nEndpoint\n  url   : %s  models=fugu, fugu-ultra\n  status: %s (GET /models)\n", sakanaBaseURL, status)
+	return b.String()
+}
+
+// =========================================================================
+// Exa search tools
+// =========================================================================
+
+const exaDefaultMaxChars = 8000
+
+// exaContentsObj builds the nested `contents` object for /search.
+func exaContentsObj(text bool, maxChars int) map[string]any {
+	if text {
+		if maxChars == 0 {
+			maxChars = exaDefaultMaxChars
+		}
+		return map[string]any{"text": map[string]any{"maxCharacters": maxChars}}
+	}
+	return map[string]any{"highlights": true}
+}
+
+func exaSearch(ctx context.Context, in ExaSearchInput) string {
+	if strings.TrimSpace(in.Query) == "" {
+		return "Error: query is required."
+	}
+	payload := map[string]any{
+		"query":      in.Query,
+		"type":       orDefaultStr(in.Type, "auto"),
+		"numResults": orDefaultInt(in.NumResults, 10),
+		"contents":   exaContentsObj(in.Text, in.MaxCharacters),
+	}
+	if len(in.IncludeDomains) > 0 {
+		payload["includeDomains"] = in.IncludeDomains
+	}
+	if len(in.ExcludeDomains) > 0 {
+		payload["excludeDomains"] = in.ExcludeDomains
+	}
+	if in.Category != "" {
+		payload["category"] = in.Category
+	}
+	if in.SystemPrompt != "" {
+		payload["systemPrompt"] = in.SystemPrompt
+	}
+	if strings.TrimSpace(in.OutputSchema) != "" {
+		var schema any
+		if err := jsonUnmarshalStr(in.OutputSchema, &schema); err != nil {
+			return "Error: output_schema is not valid JSON: " + err.Error()
+		}
+		payload["outputSchema"] = schema
+	}
+	parsed, status, err := exaPost(ctx, "/search", payload, 90*time.Second)
+	if err != nil {
+		return "Error (Exa): " + err.Error()
+	}
+	if status != 200 {
+		return fmt.Sprintf("Exa /search error: %s", apiErrorMsg(parsed, status))
+	}
+	return outputOrFile(formatExaResponse(parsed, fmt.Sprintf("Exa search · type=%s · %q", payload["type"], in.Query)), "exa_search")
+}
+
+func exaAnswer(ctx context.Context, in ExaAnswerInput) string {
+	if strings.TrimSpace(in.Query) == "" {
+		return "Error: query is required."
+	}
+	payload := map[string]any{"query": in.Query}
+	if in.Text {
+		payload["text"] = true
+	}
+	parsed, status, err := exaPost(ctx, "/answer", payload, 90*time.Second)
+	if err != nil {
+		return "Error (Exa): " + err.Error()
+	}
+	if status != 200 {
+		return fmt.Sprintf("Exa /answer error: %s", apiErrorMsg(parsed, status))
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Exa answer · %q\n\n", in.Query)
+	if ans, ok := parsed["answer"].(string); ok && ans != "" {
+		b.WriteString(ans + "\n")
+	} else {
+		b.WriteString("_(no answer field in response)_\n")
+	}
+	if cites, ok := parsed["citations"].([]any); ok && len(cites) > 0 {
+		b.WriteString("\n### Citations\n")
+		for i, c := range cites {
+			m, _ := c.(map[string]any)
+			title, _ := m["title"].(string)
+			url, _ := m["url"].(string)
+			fmt.Fprintf(&b, "%d. [%s](%s)\n", i+1, orDefaultStr(title, url), url)
+		}
+	}
+	return outputOrFile(b.String(), "exa_answer")
+}
+
+func exaContents(ctx context.Context, in ExaContentsInput) string {
+	if len(in.Urls) == 0 {
+		return "Error: at least one url is required."
+	}
+	payload := map[string]any{"urls": in.Urls}
+	for k, v := range exaContentsObj(in.Text, in.MaxCharacters) {
+		payload[k] = v // /contents takes these fields top-level, not nested
+	}
+	parsed, status, err := exaPost(ctx, "/contents", payload, 90*time.Second)
+	if err != nil {
+		return "Error (Exa): " + err.Error()
+	}
+	if status != 200 {
+		return fmt.Sprintf("Exa /contents error: %s", apiErrorMsg(parsed, status))
+	}
+	return outputOrFile(formatExaResponse(parsed, fmt.Sprintf("Exa contents · %d URL(s)", len(in.Urls))), "exa_contents")
+}
+
+func exaStatus(ctx context.Context) string {
+	var b strings.Builder
+	keyState := "NOT SET — add op://claude/exa-ai-api-key or export EXA_API_KEY"
+	if getExaKey() != "" {
+		keyState = "set ✓ (op://claude/exa-ai-api-key)"
+	}
+	fmt.Fprintf(&b, "Exa search API (exa_search / exa_answer / exa_contents)\n")
+	fmt.Fprintf(&b, "API key : %s\nBilling : per-token/credit paid (per-search + per-content)\n", keyState)
+	if getExaKey() == "" {
+		return b.String()
+	}
+	parsed, status, err := exaPost(ctx, "/search", map[string]any{"query": "ping", "type": "instant", "numResults": 1}, 15*time.Second)
+	statusLine := "OK ✓"
+	switch {
+	case err != nil:
+		statusLine = "ERROR — " + err.Error()
+	case status == 401 || status == 403:
+		statusLine = fmt.Sprintf("HTTP %d (auth error — check the Exa key)", status)
+	case status != 200:
+		statusLine = fmt.Sprintf("HTTP %d — %s", status, apiErrorMsg(parsed, status))
+	}
+	fmt.Fprintf(&b, "\nEndpoint\n  url   : %s/search\n  status: %s\n", exaBaseURL, statusLine)
+	return b.String()
+}
+
+// formatExaResponse renders an Exa /search or /contents JSON response as markdown:
+// the results list plus any grounded outputSchema synthesis.
+func formatExaResponse(parsed map[string]any, header string) string {
+	var b strings.Builder
+	b.WriteString("## " + header + "\n")
+	if cd, ok := parsed["costDollars"].(map[string]any); ok {
+		if total, ok := cd["total"].(float64); ok {
+			fmt.Fprintf(&b, "_cost: $%.4f_\n", total)
+		}
+	}
+	results, _ := parsed["results"].([]any)
+	if len(results) == 0 {
+		b.WriteString("\n_(no results)_\n")
+	}
+	for i, r := range results {
+		m, _ := r.(map[string]any)
+		title, _ := m["title"].(string)
+		url, _ := m["url"].(string)
+		fmt.Fprintf(&b, "\n### %d. %s\n%s\n", i+1, orDefaultStr(title, "(untitled)"), url)
+		if pd, _ := m["publishedDate"].(string); pd != "" {
+			fmt.Fprintf(&b, "_published: %s_\n", pd)
+		}
+		if hs, ok := m["highlights"].([]any); ok && len(hs) > 0 {
+			for _, h := range hs {
+				if s, ok := h.(string); ok {
+					fmt.Fprintf(&b, "> %s\n", strings.ReplaceAll(strings.TrimSpace(s), "\n", " "))
+				}
+			}
+		}
+		if s, _ := m["summary"].(string); s != "" {
+			fmt.Fprintf(&b, "%s\n", s)
+		}
+		if t, _ := m["text"].(string); t != "" {
+			fmt.Fprintf(&b, "\n%s\n", t)
+		}
+	}
+	if out, ok := parsed["output"].(map[string]any); ok {
+		b.WriteString("\n---\n### Synthesized output\n")
+		switch c := out["content"].(type) {
+		case string:
+			b.WriteString(c + "\n")
+		default:
+			b.WriteString("```json\n" + jsonIndent(out["content"]) + "\n```\n")
+		}
+		if g, ok := out["grounding"].([]any); ok && len(g) > 0 {
+			fmt.Fprintf(&b, "\n_%d grounded field(s) with citations._\n", len(g))
+		}
+	}
 	return b.String()
 }
 
@@ -624,6 +899,14 @@ func orStatus(ctx context.Context) string {
 		case "zai":
 			if getGLMKey() != "" {
 				keyState = "set ✓"
+			}
+		case "sakana":
+			if getSakanaKey() != "" {
+				keyState = "set ✓ (per-token; NOT ZDR by default — see sakana_status)"
+			}
+		case "exa":
+			if getExaKey() != "" {
+				keyState = "set ✓ (search API, per-token)"
 			}
 		}
 		fmt.Fprintf(&b, "  %s (%s*)\n    API key  : %s\n    MCP tools: %s\n",

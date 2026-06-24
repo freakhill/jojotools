@@ -1,6 +1,6 @@
 # ai-router MCP
 
-Personal multi-model AI router. Routes tasks to the right model across three access tiers, enforces no-training (ZDR) on every call, and exposes 15 MCP tools to Claude Code.
+Personal multi-model AI router. Routes tasks to the right model across multiple access tiers, enforces no-training (ZDR) on every OpenRouter call, and exposes 21 MCP tools to Claude Code. (One documented exception to no-training: Sakana Fugu trains by default until you opt out — see its section below.)
 
 > **Runtime: Go server** (`go/`, single static binary, `models.json` embedded — no `uv`/Python at runtime). Built **from source on first use**: `.mcp.json` runs `sh go/run.sh`, which compiles the binary into a content-hashed cache (`${XDG_CACHE_HOME:-~/.cache}/ai-router/<os>-<arch>-<srchash>/`) and execs it. The cache is keyed by a hash of the build inputs, so it's reused across plugin updates / reinstalls / restarts whenever the source is unchanged — only a real code change triggers one rebuild (primeable ahead of time via `sh go/run.sh </dev/null` from any checkout of the same revision). The Go toolchain must be present on the host. No binaries are committed. See `go/README.md`. The routing semantics, tiers, and tools below are unchanged from the original Python server; code-location references point into `go/*.go`. The only remaining Python is `update_models.py` (standalone yearly catalog-maintenance script).
 
@@ -34,7 +34,7 @@ ZDR still applies (`provider.data_collection=deny` on every call); S14b (2026-06
 
 ---
 
-## The 15 Tools
+## The 21 Tools
 
 ### Kimi Subscription — default K2.7 (flat-rate; use these first — no per-token marginal cost)
 
@@ -66,6 +66,28 @@ General tools (`kimi_ask`, `kimi_batch`, `kimi_swarm`, `kimi_research_compile`, 
 Available models on the endpoint: `glm-5.1` (default), `glm-5`, `glm-5-turbo`, `glm-4.7`, `glm-4.6`, `glm-4.5`, `glm-4.5-air`.
 
 **When to use GLM instead of Kimi:** second-opinion runs, A/B comparisons, spreading load when Kimi quota is tight, or when you specifically want a GLM-family answer. Same Tier-2 cost profile (flat-rate sub, no marginal $) — pick based on quality fit per task.
+
+### Sakana Fugu (direct, per-token paid — Fable-tier frontier; NOT ZDR by default)
+
+| Tool | Use when |
+|---|---|
+| `sakana_ask` | Single-turn query to Sakana Fugu. `model=fugu` (fast default) or `model=fugu-ultra` (deep multi-step reasoning, 272K ctx). `effort=high\|xhigh` sets reasoning depth. |
+| `sakana_status` | Check connectivity + API key **and the training/no-training opt-out state** |
+
+Sakana Fugu is a multi-agent orchestration model (it dispatches to a pool of LLMs behind one OpenAI-compatible endpoint, `api.sakana.ai/v1`) that benchmarks against Fable 5 / GPT-5.5. Key at `op://claude/sakana-api-key` (env `SAKANA_API_KEY` fallback). Direct key → blocked from OR routing, never auto-routed; reach it only via `sakana_ask`.
+
+> **⚠ NO-TRAINING CAVEAT — read before use.** Unlike OpenRouter (per-call `provider.data_collection=deny`), Sakana **trains on API prompts by default** and exposes **no per-call ZDR switch**. The no-training guarantee holds **only after you flip the training opt-out in the console** (`console.sakana.ai` → account/privacy); zero-retention is not confirmed available. The catalog marks it `no_training=false`; `sakana_status` prints a loud banner; `or_status` flags the key as "NOT ZDR by default". Treat Fugu as a non-ZDR route — don't send sensitive prompts until you've opted out. Billing is per-token (fugu $1.50/$6.00 per M, fugu-ultra $5.00/$30.00 per M), not flat-rate.
+
+### Exa (web search / retrieval — per-token paid)
+
+| Tool | Use when |
+|---|---|
+| `exa_search` | Web search. `type=auto\|fast\|instant\|deep-lite\|deep\|deep-reasoning`. Returns ranked results with highlights (or full `text=true`). Pass `output_schema` (a JSON-schema string) for grounded structured synthesis (`output.content` + field-level citations). |
+| `exa_answer` | Grounded natural-language answer to a question, with source citations (Exa `/answer`). |
+| `exa_contents` | Extract clean parsed content (highlights/text) for URLs you already have (Exa `/contents`). |
+| `exa_status` | Check connectivity + API key |
+
+Exa is a neural web-search/retrieval API (`api.exa.ai`, `x-api-key` auth — **not** chat-completions). Key at `op://claude/exa-ai-api-key` (env `EXA_API_KEY` fallback). It's a search tool, not a generative LLM, so it's not part of profile/model routing; the existing `deep-research` skill (and any agent loop) can call `exa_search`/`exa_answer` directly for grounded sources. Canonical reference: `docs.exa.ai/reference/search-api-guide-for-coding-agents`. Prefer `highlights` (token-efficient) by default; add `text=true` only when downstream reasoning needs full page context.
 
 ### OpenRouter (per-token paid — only when Kimi / host Claude can't do it)
 

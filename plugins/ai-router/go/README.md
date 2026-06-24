@@ -1,7 +1,7 @@
 # ai-router — Go port
 
 A full rewrite of the Python `ai-router` MCP server in Go: **one static binary
-per platform**, `models.json` embedded, all **15 tools** ported, routing logic
+per platform**, `models.json` embedded, **21 tools**, routing logic
 translated 1:1 and unit-tested. Runs over stdio via the official MCP Go SDK.
 
 ## Why Go
@@ -11,12 +11,14 @@ translated 1:1 and unit-tested. Runs over stdio via the official MCP Go SDK.
 - Goroutines replace asyncio for the parallel tools (`*_batch`, `or_compare`, `*_swarm`).
 - Faster cold start (no interpreter + dependency resolution per launch).
 
-## Tools (15/15)
+## Tools (21)
 
 | Group | Tools |
 |---|---|
 | Kimi (Tier 2) | `kimi_ask` `kimi_analyze` `kimi_batch` `kimi_research_compile` `kimi_sentiment_batch` `kimi_swarm` `kimi_status` |
 | GLM (Tier 2)  | `glm_ask` `glm_status` |
+| Sakana Fugu (direct, per-token; NOT ZDR by default) | `sakana_ask` `sakana_status` |
+| Exa search (direct, per-token) | `exa_search` `exa_answer` `exa_contents` `exa_status` |
 | OpenRouter (Tier 3) | `or_ask` `or_swarm` `or_image` `or_compare` `or_status` `or_profile` |
 
 ## Layout
@@ -26,9 +28,9 @@ main.go        server bootstrap (stdio transport)
 catalog.go     models.json embed + parse + routing-config application + ban/block
 routing.go     pure routing logic (host-redirect, route table, profiles, GPT-5.5 gate)
 keys.go        JIT secret fetch from 1Password via `op` (+ pure field-pickers)
-http.go        OR/Kimi/GLM chat, image gen, probe, ZDR injection, parallel helper, overflow-to-file
+http.go        OR/Kimi/GLM/Sakana chat, Exa search POST, image gen, probe, ZDR injection, parallel helper, overflow-to-file
 dirread.go     codebase reader for kimi_analyze + analysis format helpers
-tools.go       all 15 MCP tool registrations + handlers
+tools.go       all 21 MCP tool registrations + handlers
 run.sh         build-on-first-use launcher (what .mcp.json invokes)
 *_test.go      routing/capability unit tests + httptest end-to-end (ZDR, ban/block, temp-pin)
 ```

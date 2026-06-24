@@ -37,11 +37,18 @@ var (
 
 // env-overridable knobs (server.py reads these from the environment)
 var (
-	kimiUA        = env("KIMI_USER_AGENT", "KimiCLI/1.44.0")
-	kimiGenModel  = env("KIMI_GENERAL_MODEL", "kimi-k2.7")
-	glmBaseURL    = env("GLM_BASE_URL", "https://api.z.ai/api/coding/paas/v4")
-	glmModel      = env("GLM_MODEL", "glm-5.1")
-	glmUA         = env("GLM_USER_AGENT", "ai-router-mcp/glm")
+	kimiUA       = env("KIMI_USER_AGENT", "KimiCLI/1.44.0")
+	kimiGenModel = env("KIMI_GENERAL_MODEL", "kimi-k2.7")
+	glmBaseURL   = env("GLM_BASE_URL", "https://api.z.ai/api/coding/paas/v4")
+	glmModel     = env("GLM_MODEL", "glm-5.1")
+	glmUA        = env("GLM_USER_AGENT", "ai-router-mcp/glm")
+	// Sakana Fugu — OpenAI-compatible chat. NOTE: trains on prompts by default;
+	// no-training holds only after the console opt-out (see sakanaStatus banner).
+	sakanaBaseURL = env("SAKANA_BASE_URL", "https://api.sakana.ai/v1")
+	sakanaModel   = env("SAKANA_MODEL", "fugu")
+	sakanaUA      = env("SAKANA_USER_AGENT", "ai-router-mcp/sakana")
+	// Exa — native search/retrieval JSON API (NOT chat-completions); x-api-key auth.
+	exaBaseURL    = env("EXA_BASE_URL", "https://api.exa.ai")
 	retryStatuses = map[int]bool{429: true, 500: true, 502: true, 503: true, 504: true}
 	// No client-level timeout — deadlines are applied per-call via context so a
 	// 600s kimi_swarm and a 15s probe can share one connection pool.
@@ -150,6 +157,22 @@ func glmHeaders() map[string]string {
 	}
 }
 
+func sakanaHeaders() map[string]string {
+	return map[string]string{
+		"Authorization": "Bearer " + getSakanaKey(),
+		"Content-Type":  "application/json",
+		"User-Agent":    sakanaUA,
+	}
+}
+
+// exaHeaders — Exa authenticates with a raw x-api-key header, not Bearer.
+func exaHeaders() map[string]string {
+	return map[string]string{
+		"x-api-key":    getExaKey(),
+		"Content-Type": "application/json",
+	}
+}
+
 // --- Kimi (server.py:_resolve_kimi_model + _chat) ---
 
 func resolveKimiModel(model string, useGeneral bool) (string, error) {
@@ -240,6 +263,101 @@ func glmChat(ctx context.Context, messages []map[string]string, maxTokens int, t
 	}
 	content, reasoning := extractMessage(parsed)
 	return withReasoning(content, reasoning, includeReasoning), nil
+}
+
+// --- Sakana Fugu (OpenAI-compatible chat; mirrors glmChat) ---
+
+// resolveSakanaModel keeps the sakana_* tools on Sakana-family ids only, so the
+// key is never used to bill some other provider's model. Accepts an optional
+// "sakana/" prefix and the dated ultra id.
+func resolveSakanaModel(model string) (string, error) {
+	if model == "" {
+		return sakanaModel, nil
+	}
+	m := strings.TrimPrefix(strings.TrimSpace(model), "sakana/")
+	if m == "fugu" || strings.HasPrefix(m, "fugu-") {
+		return m, nil
+	}
+	return "", fmt.Errorf("model=%q is not a Sakana-family id. sakana_ask only runs Fugu "+
+		"models on the Sakana key (e.g. 'fugu', 'fugu-ultra'). Use or_ask / glm_ask for other providers", model)
+}
+
+func sakanaChat(ctx context.Context, messages []map[string]string, maxTokens int, temperature float64, model, effort string, includeReasoning bool) (string, error) {
+	if getSakanaKey() == "" {
+		return "", fmt.Errorf("Sakana key unavailable — could not read it from 1Password (op://claude/sakana-api-key) or SAKANA_API_KEY env")
+	}
+	chosen, err := resolveSakanaModel(model)
+	if err != nil {
+		return "", err
+	}
+	if maxTokens == 0 {
+		maxTokens = defaultMaxTokens
+	}
+	if maxTokens < 16 {
+		maxTokens = 16 // Fugu rejects max_tokens < 16
+	}
+	payload := map[string]any{
+		"model":       chosen,
+		"messages":    messages,
+		"max_tokens":  maxTokens,
+		"temperature": temperature,
+		"stream":      false,
+	}
+	// Fugu accepts reasoning_effort high|xhigh (also "max"); omit to use its default.
+	if e := strings.ToLower(strings.TrimSpace(effort)); e != "" {
+		payload["reasoning_effort"] = e
+	}
+	parsed, status, err := postChat(ctx, sakanaBaseURL, sakanaHeaders(), payload, 600*time.Second)
+	if err != nil {
+		return "", err
+	}
+	if status != http.StatusOK {
+		return "", fmt.Errorf("%s", apiErrorMsg(parsed, status))
+	}
+	content, reasoning := extractMessage(parsed)
+	return withReasoning(content, reasoning, includeReasoning), nil
+}
+
+// --- Exa native search API (POST /search, /answer, /contents; x-api-key auth) ---
+
+// exaPost sends a JSON body to an Exa endpoint and returns the parsed response.
+// Exa is not chat-completions shaped, so it can't reuse postChat.
+func exaPost(ctx context.Context, path string, payload map[string]any, timeout time.Duration) (parsed map[string]any, status int, err error) {
+	if getExaKey() == "" {
+		return nil, 0, fmt.Errorf("Exa key unavailable — could not read it from 1Password (op://claude/exa-ai-api-key) or EXA_API_KEY env")
+	}
+	cctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	body, _ := json.Marshal(payload)
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		req, e := http.NewRequestWithContext(cctx, http.MethodPost, exaBaseURL+path, bytes.NewReader(body))
+		if e != nil {
+			return nil, 0, e
+		}
+		for k, v := range exaHeaders() {
+			req.Header.Set(k, v)
+		}
+		resp, e := httpClient.Do(req)
+		if e != nil {
+			lastErr = e
+			if attempt < maxRetries {
+				time.Sleep(retryBackoff * time.Duration(attempt+1))
+				continue
+			}
+			return nil, 0, e
+		}
+		data, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if retryStatuses[resp.StatusCode] && attempt < maxRetries {
+			time.Sleep(retryBackoff * time.Duration(attempt+1))
+			continue
+		}
+		var out map[string]any
+		_ = json.Unmarshal(data, &out)
+		return out, resp.StatusCode, nil
+	}
+	return nil, 0, lastErr
 }
 
 // --- OpenRouter (server.py:_or_chat) — ban + OR-block + ZDR enforced here ---
@@ -336,19 +454,44 @@ func probeEndpoint(ctx context.Context, baseURL, model string, headers map[strin
 		return "ERROR — " + err.Error()
 	}
 	defer resp.Body.Close()
+	return probeStatusText(resp.StatusCode, authVar)
+}
+
+// probeModelsEndpoint — GET <baseURL>/models: a cheap key + connectivity check
+// for OpenAI-compatible providers whose /chat/completions has a min-token floor
+// (Sakana Fugu requires max_tokens>=16, so a 1-token chat probe 400s). No tokens
+// generated → no orchestration cost.
+func probeModelsEndpoint(ctx context.Context, baseURL string, headers map[string]string, authVar string) string {
+	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(cctx, http.MethodGet, baseURL+"/models", nil)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "ERROR — " + err.Error()
+	}
+	defer resp.Body.Close()
+	return probeStatusText(resp.StatusCode, authVar)
+}
+
+// probeStatusText maps a probe HTTP status to a human-readable line (shared by
+// the chat and /models probes).
+func probeStatusText(code int, authVar string) string {
 	switch {
-	case resp.StatusCode == 200:
+	case code == 200:
 		return "OK ✓"
-	case resp.StatusCode == 401 || resp.StatusCode == 403:
-		return fmt.Sprintf("HTTP %d (auth error — check %s)", resp.StatusCode, authVar)
-	case resp.StatusCode == 404:
+	case code == 401 || code == 403:
+		return fmt.Sprintf("HTTP %d (auth error — check %s)", code, authVar)
+	case code == 404:
 		return "HTTP 404 (endpoint not found — check base URL)"
-	case resp.StatusCode == 429:
+	case code == 429:
 		return "HTTP 429 (rate limited — tools will still work when quota resets)"
-	case resp.StatusCode >= 500:
-		return fmt.Sprintf("HTTP %d (server error)", resp.StatusCode)
+	case code >= 500:
+		return fmt.Sprintf("HTTP %d (server error)", code)
 	default:
-		return fmt.Sprintf("HTTP %d", resp.StatusCode)
+		return fmt.Sprintf("HTTP %d", code)
 	}
 }
 
