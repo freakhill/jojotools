@@ -5,6 +5,6 @@
   "description": "jojo's agentic Claude Code tooling — multi-model MCP router + orchestration skills.",
   "plugins": [
     { "name": "ai-router", "source": "./plugins/ai-router", "description": "Multi-model MCP router (Kimi/GLM/Sakana/OpenRouter + Exa search) — bring your own keys, ZDR on OpenRouter." },
-    { "name": "jojo-skills", "source": "./plugins/jojo-skills", "description": "Agentic skills: FLO, monkeypaw, ayo, wololo, writing/executing-plans, subagent-driven-dev, init-repo/memory, git-worktrees." }
+    { "name": "jojo-skills", "source": "./plugins/jojo-skills", "description": "Agentic skills: FLO, monkeypaw, ayo, ayoflo, dago, wololo, writing/executing-plans, subagent-driven-dev, init-repo/memory, git-worktrees." }
   ]
 }
