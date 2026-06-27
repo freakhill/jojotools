@@ -15,7 +15,7 @@ Tier 1 │ Host-native (flat-rate sub) │ anthropic/*   │ Claude Code Max sub
 Tier 2 │ Subscription API (flat-rate)│ moonshotai/*  │ Kimi key JIT from op (env fallback)
        │ Use kimi_* tools            │               │ kimi-k2.7 (default), kimi-k2.6, kimi-for-coding
        │                             │ zai/*         │ GLM key JIT from op (env fallback)
-       │ Use glm_* tools             │               │ glm-5.1 (default), glm-4.6, …
+       │ Use glm_* tools             │               │ glm-5.2 (default), glm-5.1, glm-4.6, …
 ───────┼─────────────────────────────┼───────────────┼──────────────────────────────
 Tier 3 │ OpenRouter (per-token paid) │ everything    │ op://claude/openrouter-api-key
        │ or_* tools, ZDR enforced    │ else          │ $0.11–$1.00/M tokens (JIT from op)
@@ -60,10 +60,10 @@ General tools (`kimi_ask`, `kimi_batch`, `kimi_swarm`, `kimi_research_compile`, 
 
 | Tool | Use when |
 |---|---|
-| `glm_ask` | Single-turn query to GLM (default `glm-5.1`). Override with `model="glm-4.6"` etc. |
+| `glm_ask` | Single-turn query to GLM (default `glm-5.2`). Override with `model="glm-5.1"` etc. |
 | `glm_status` | Check connectivity + API key |
 
-Available models on the endpoint: `glm-5.1` (default), `glm-5`, `glm-5-turbo`, `glm-4.7`, `glm-4.6`, `glm-4.5`, `glm-4.5-air`.
+Available models on the endpoint: `glm-5.2` (default; z.ai "GLM 5.2 Pro" — the API model code is `glm-5.2`, the `-pro` suffix is rejected), `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`, `glm-4.6`, `glm-4.5`, `glm-4.5-air`.
 
 **When to use GLM instead of Kimi:** second-opinion runs, A/B comparisons, spreading load when Kimi quota is tight, or when you specifically want a GLM-family answer. Same Tier-2 cost profile (flat-rate sub, no marginal $) — pick based on quality fit per task.
 
@@ -315,4 +315,4 @@ cd go && go test ./...
 | `GLM_API_KEY` | No | Fallback for the GLM key when op yields nothing (see above). |
 | _(OpenRouter key)_ | Yes | Fetched JIT from `op://claude/openrouter-api-key` — **not** an env var for the server; `op` must be signed in. The standalone `update_models.py` script still reads `OPENROUTER_API_KEY` from env. |
 | `GLM_BASE_URL` | No | Override z.ai endpoint (default `https://api.z.ai/api/coding/paas/v4`) |
-| `GLM_MODEL` | No | Override default GLM model (default `glm-5.1`) |
+| `GLM_MODEL` | No | Override default GLM model (default `glm-5.2`) |

@@ -24,8 +24,9 @@
       "tools": [
         "glm_ask"
       ],
-      "default_model": "glm-5.1",
+      "default_model": "glm-5.2",
       "available_models": [
+        "glm-5.2",
         "glm-5.1",
         "glm-5",
         "glm-5-turbo",
@@ -575,6 +576,7 @@
           "provider": "zai",
           "prefix": "zai/",
           "model_ids": [
+            "zai/glm-5.2",
             "zai/glm-5.1",
             "zai/glm-5",
             "zai/glm-5-turbo",
@@ -585,7 +587,7 @@
           ],
           "env_var": "GLM_API_KEY",
           "base_url_env": "GLM_BASE_URL",
-          "default_model": "glm-5.1",
+          "default_model": "glm-5.2",
           "mcp_tools": [
             "glm_ask",
             "glm_status"
