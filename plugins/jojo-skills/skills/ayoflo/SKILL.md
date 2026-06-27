@@ -1,7 +1,7 @@
 ---
 name: ayoflo
 description: 'Use to solve ONE specific, substantial problem well via a three-stage pipeline: subject Expansion (broaden the problem surface) -> Research (ayo cross-model prior-art mining over the expanded subject) -> FLO (feedback-loop-optimization that actually produces and selects the solution, grounded in the research). The unit solver — point it at a thorny design decision or sub-problem. dago calls ayoflo to produce a DAG plan and to resolve heavy nodes. Distinct from ayo (mines lessons, does not solve) and feedback-loop-optimization (optimizes with no expansion/research front-end).'
-version: 0.1.0
+version: 0.2.0
 ---
 
 # ayoflo — Expansion → Research → FLO
@@ -25,7 +25,7 @@ The one problem to solve, and the grounding docs/specs/constraints it must respe
 Broaden the problem surface before researching: what is actually being asked, the adjacent concerns, the framings and hard constraints, the candidate solution shapes. The goal is to not under-scope — a narrow frame produces narrow research and a narrow FLO. (Host does this; a quick fan-out is optional.)
 
 ### 2 — Research (ayo)
-Run an `ayo` cross-model pass over the *expanded* subject — mine how mature systems handled this shape and what they learned the hard way, cross-family so blind spots don't correlate. Synthesize into a tight, triaged brief the FLO can consume (not raw lane dumps).
+Run an `ayo` cross-model pass over the *expanded* subject — mine how mature systems handled this shape and what they learned the hard way, cross-family so blind spots don't correlate. Synthesize into a tight, triaged brief the FLO can consume (not raw lane dumps). The standing cross-model lanes are **Gemini 3.1 Pro** (`or_ask` `google/gemini-3.1-pro-preview`, ZDR) and **GLM 5.2 Pro** (`glm_ask` `glm-5.2`) alongside Host + Kimi — independent families, so blind spots don't correlate.
 
 ### 3 — FLO (solve)
 Run `feedback-loop-optimization` to actually produce and select the solution, seeding the worker prompt **and** the evaluator rubric with the expansion + research brief. Workers propose; isolated cross-family evaluators score; loop to stuck/max. This is where the solution is produced — ayoflo's first two stages exist to make this stage well-grounded.
@@ -37,5 +37,6 @@ The solved artifact + a method footer (expansion notes, ayo families used, FLO c
 
 - The research **grounds** the FLO — that is the whole point. Don't let the FLO run blind when expansion + research would have framed it.
 - The orchestrator stays the synthesizer; research lanes and evaluators only ever *propose* or *score*, never both in one context (anti-sycophancy, as in `ayo` / FLO).
+- **Run an adversarial source-reading lane per generation.** For a design/code problem over a real repo, spawn one host subagent per generation that reads the *actual* repo and tries to break the proposal. Cross-family judges (Gemini 3.1 Pro / GLM 5.2 Pro) catch reasoning holes, but only a lane that reads the source catches the structural / byte-level holes a judge panel misses — the source-read lane and the judges fail differently (slopysheet lesson, 2026-06-27).
 - In slopysheet, this same Expansion→ayo→FLO shape both produced the #16 world-model DAG plan (planning use, driven by `dago`) and resolved individual nodes (e.g. the U-unification node, FLO 100/100).
 - Pairs with: `dago` (orchestrates ayoflo across a DAG — to produce the plan and to resolve heavy nodes), `ayo` (the research stage, standalone), `feedback-loop-optimization` (the solve stage, standalone).

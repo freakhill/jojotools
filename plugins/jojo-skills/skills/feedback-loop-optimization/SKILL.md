@@ -1,7 +1,7 @@
 ---
 name: feedback-loop-optimization
 description: This skill should be used when the user wants to "optimize a task iteratively", "run a feedback loop on a project", "improve a solution through iterations", "run FLO on this", "set up an optimization loop", "evaluate and improve my solution", or needs to systematically improve output quality through repeated worker/evaluator cycles with anti-sycophancy separation.
-version: 1.9.12
+version: 1.9.13
 ---
 
 > **First run?** Read Phase 0→1→2→3→4 sequentially (~15 min).

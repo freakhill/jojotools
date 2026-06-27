@@ -1,7 +1,7 @@
 ---
 name: ayo
 description: 'Use when you want to mine hard-earned lessons from an external mature system, standard, or body of literature (e.g. "are there lessons we can learn from CBOR / the JVM / Hydro?", "what did X get right or wrong that applies to us?", "research Y in this style") and assess their pertinence to the current project. Runs several independent model families in parallel as blind research lanes, then compiles, pertinence-triages, and lands a research-derived design note. Distinct from feedback-loop-optimization: FLO scores/selects a specific artifact; this MINES and TRIAGES external prior art.'
-version: 0.1.0
+version: 0.2.0
 ---
 
 # ayo — Cross-Model Research
@@ -27,10 +27,11 @@ Write down three things and confirm the target with the user if it's ambiguous:
 ### 1 — Fan out blind research lanes (parallel)
 Spawn one lane per independent model **family**, each with the *same* project brief and the *same* output contract, none seeing another's output:
 - **Host (you, the orchestrator's family)** — mine from your own knowledge.
-- **Gemini** (Google) — `ai-router` `or_ask(model: "google/gemini-3.1-pro-preview", host_token_pressure: true)`; generous `max_tokens`.
+- **Gemini 3.1 Pro** (Google) — `ai-router` `or_ask(model: "google/gemini-3.1-pro-preview", host_token_pressure: true)`; generous `max_tokens` (it can return an empty body — retry once at ~9000 tokens). ZDR.
+- **GLM 5.2 Pro** (Z.ai / Zhipu) — `ai-router` `glm_ask(model: "glm-5.2", ...)` (flat-rate subscription; `glm-5.2` is already the router default — the `-pro` suffix is rejected HTTP 400, so the id is bare `glm-5.2`). Give it a fat `max_tokens` and a "lead with the structured answer first" instruction — it reasons very verbosely but catches holes the other lanes miss.
 - **Kimi** (Moonshot) — the `kimi` CLI out-of-process (clean cwd), or `kimi_*` MCP tools after one `kimi_status` (key `set ✓`).
 
-Cross-family = independent vendors, so blind spots don't correlate. If a family is unavailable, proceed with the rest and say so in the method footer. **Privacy (hard lines):** ZDR / no-training routes only; never route `anthropic/*` or `moonshotai/*` through OpenRouter; Gemini goes via `ai-router`.
+Cross-family = independent vendors, so blind spots don't correlate. If a family is unavailable, proceed with the rest and say so in the method footer. **Privacy (hard lines):** ZDR / no-training routes only; never route `anthropic/*` or `moonshotai/*` through OpenRouter; Gemini and GLM go via `ai-router` (Gemini = OpenRouter, ZDR; GLM = z.ai direct subscription).
 
 **Output contract — every lane, every lesson:**
 ```
