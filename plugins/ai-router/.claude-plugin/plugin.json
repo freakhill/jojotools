@@ -1,6 +1,6 @@
 {
   "name": "ai-router",
   "description": "Multi-model MCP router (Kimi/GLM/Sakana/OpenRouter + Exa search) — bring your own keys, ZDR enforced on OpenRouter. Go server, built from source on first use.",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "author": { "name": "jojo" }
 }
